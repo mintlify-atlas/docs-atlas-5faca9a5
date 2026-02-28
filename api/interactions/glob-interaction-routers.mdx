@@ -1,0 +1,243 @@
+---
+title: globInteractionRouters
+description: Automatically discover and register interaction routers from the filesystem
+---
+
+The `globInteractionRouters` function automatically discovers interaction router modules from the filesystem using glob patterns, then registers them with Discord. This is the recommended way to organize and load interactions in mygourd.
+
+## Function signature
+
+```typescript
+function globInteractionRouters(
+  client: Client,
+  pattern: string,
+  baseDir?: string
+): Promise<Array<{ module: InteractionModule; path: string }>>
+```
+
+## Parameters
+
+<ParamField path="client" type="Client" required>
+  A Discord.js Client instance. The client can be in any state, but commands will only be registered once the client is ready.
+</ParamField>
+
+<ParamField path="pattern" type="string" required>
+  A glob pattern to match interaction module files. Supports standard glob syntax:
+  
+  - `**/*.ts` - All TypeScript files recursively
+  - `commands/**/*.ts` - All TypeScript files in commands directory
+  - `interactions/{commands,menus}/*.ts` - Files in specific subdirectories
+  
+  The pattern is resolved relative to `baseDir`.
+</ParamField>
+
+<ParamField path="baseDir" type="string" default="current working directory">
+  Optional base directory for resolving the glob pattern. In Bun, you can use `import.meta.dir` to reference the current file's directory.
+</ParamField>
+
+## Return value
+
+<ResponseField name="modules" type="Promise<Array<{ module: InteractionModule; path: string }>>">
+  A promise that resolves to an array of discovered modules with their file paths.
+  
+  Each object contains:
+  - `module` - The interaction router module
+  - `path` - The absolute file path where the module was found
+  
+  This is useful for debugging or logging which modules were loaded.
+</ResponseField>
+
+## Behavior
+
+The function performs the following steps:
+
+1. **Scans filesystem**: Uses the glob pattern to find matching files
+2. **Imports modules**: Dynamically imports each matching file
+3. **Validates exports**: Checks all exports from each file for valid interaction modules
+4. **Registers modules**: Calls `registerInteractionRouters` with all discovered modules
+5. **Returns metadata**: Provides information about what was loaded
+
+## Usage
+
+### Basic usage
+
+```typescript
+import { Client } from 'discord.js';
+import { globInteractionRouters } from 'mygourd/interactions';
+
+const client = new Client({ intents: ['Guilds'] });
+
+await globInteractionRouters(
+  client,
+  'interactions/**/*.ts',
+  import.meta.dir
+);
+
+await client.login(process.env.BOT_TOKEN);
+```
+
+### Project structure
+
+```
+bot/
+├── index.ts
+└── interactions/
+    ├── commands/
+    │   ├── ping.ts
+    │   ├── info.ts
+    │   └── config.ts
+    └── menus/
+        ├── user-info.ts
+        └── report.ts
+```
+
+### Multiple patterns with globAllRouters
+
+For loading both events and interactions, use `globAllRouters` instead:
+
+```typescript
+import { Client } from 'discord.js';
+import { globAllRouters } from 'mygourd/routers';
+
+const client = new Client({
+  intents: ['Guilds', 'MessageContent', 'GuildMessages'],
+});
+
+await globAllRouters(
+  client,
+  ['events/**/*.ts', 'interactions/**/*.ts'],
+  import.meta.dir
+);
+
+await client.login(process.env.BOT_TOKEN);
+```
+
+### Complete example
+
+```typescript
+// bot/index.ts
+import { type } from 'arktype';
+import consola from 'consola';
+import { Client } from 'discord.js';
+import { globAllRouters } from 'mygourd/routers';
+import { login, useEnv } from 'mygourd/utils';
+
+const env = useEnv({
+  BOT_TOKEN: type(/[A-Za-z.]/).configure({ actual: '' }),
+});
+
+const client = new Client({
+  intents: ['Guilds', 'MessageContent', 'GuildMessages', 'GuildVoiceStates'],
+});
+
+await globAllRouters(
+  client,
+  ['events/**/*.ts', 'interactions/**/*.ts'],
+  import.meta.dir,
+);
+
+await login(client, env.BOT_TOKEN, () => {
+  consola.info('Shutting down!');
+});
+```
+
+```typescript
+// bot/interactions/commands/ping.ts
+import { SlashCommandBuilder } from 'discord.js';
+import { createInteractionRouterCommand } from 'mygourd/interactions';
+
+export default createInteractionRouterCommand({
+  definition: new SlashCommandBuilder()
+    .setName('ping')
+    .setDescription('Pings the bot!'),
+  handler: async (event) => {
+    await event.reply({
+      content: 'pong',
+      flags: 'Ephemeral',
+    });
+  },
+});
+```
+
+### Logging discovered modules
+
+```typescript
+import { Client } from 'discord.js';
+import { globInteractionRouters } from 'mygourd/interactions';
+import consola from 'consola';
+
+const client = new Client({ intents: ['Guilds'] });
+
+const discovered = await globInteractionRouters(
+  client,
+  'interactions/**/*.ts',
+  import.meta.dir
+);
+
+consola.info(`Loaded ${discovered.length} interaction modules:`);
+discovered.forEach(({ path }) => {
+  consola.info(`  - ${path}`);
+});
+
+await client.login(process.env.BOT_TOKEN);
+```
+
+### Organizing by feature
+
+```
+bot/
+├── index.ts
+└── features/
+    ├── moderation/
+    │   └── interactions/
+    │       ├── ban.ts
+    │       └── kick.ts
+    ├── utility/
+    │   └── interactions/
+    │       ├── ping.ts
+    │       └── info.ts
+    └── fun/
+        └── interactions/
+            └── meme.ts
+```
+
+```typescript
+// Load all feature interactions
+await globInteractionRouters(
+  client,
+  'features/**/interactions/*.ts',
+  import.meta.dir
+);
+```
+
+## Export requirements
+
+For modules to be discovered, they must:
+
+1. Be created with `createInteractionRouter`, `createInteractionRouterCommand`, or `createInteractionRouterMenu`
+2. Be exported from the file (default or named export)
+
+```typescript
+// ✅ Valid - default export
+export default createInteractionRouterCommand({ ... });
+
+// ✅ Valid - named export
+export const pingCommand = createInteractionRouterCommand({ ... });
+
+// ✅ Valid - multiple exports
+export const command1 = createInteractionRouterCommand({ ... });
+export const command2 = createInteractionRouterCommand({ ... });
+
+// ❌ Invalid - not exported
+const command = createInteractionRouterCommand({ ... });
+
+// ❌ Invalid - not created with router functions
+export const command = { ... };
+```
+
+## Related functions
+
+- [registerInteractionRouters](/api/interactions/register-interaction-routers) - Manually register routers
+- [createInteractionRouterCommand](/api/interactions/create-command) - Create command routers
+- [createInteractionRouterMenu](/api/interactions/create-menu) - Create menu routers
+- [createInteractionRouter](/api/interactions/create-interaction-router) - Create custom routers

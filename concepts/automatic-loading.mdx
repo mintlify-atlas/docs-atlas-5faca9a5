@@ -1,0 +1,353 @@
+---
+title: Automatic loading
+description: Discover how mygourd uses glob patterns to automatically discover and register event and interaction routers from your filesystem
+---
+
+Automatic loading is mygourd's core feature that eliminates boilerplate by discovering and registering routers using glob patterns. Instead of manually importing and registering each event handler or command, you define a pattern and mygourd finds everything automatically.
+
+## The globAllRouters function
+
+The `globAllRouters` function is the unified entry point for automatic loading. It handles both event and interaction routers with a single function call:
+
+```ts
+import { Client } from 'discord.js';
+import { globAllRouters } from 'mygourd/routers';
+import { login, useEnv } from 'mygourd/utils';
+import { type } from 'arktype';
+
+const env = useEnv({
+  BOT_TOKEN: type(/[A-Za-z.]/).configure({ actual: '' }),
+});
+
+const client = new Client({
+  intents: ['Guilds', 'MessageContent', 'GuildMessages', 'GuildVoiceStates'],
+});
+
+await globAllRouters(
+  client,
+  ['events/**/*.ts', 'interactions/**/*.ts'],
+  import.meta.dir,
+);
+
+await login(client, env.BOT_TOKEN, () => {
+  console.info('Shutting down!');
+});
+```
+
+### Parameters
+
+```ts
+export const globAllRouters = async (
+  client: Client,
+  pattern: string | string[],
+  baseDir?: string,
+) => {
+  // Implementation
+};
+```
+
+- **client**: Your Discord.js client instance
+- **pattern**: A glob pattern string or array of patterns to match files
+- **baseDir**: The base directory to search from (typically `import.meta.dir`)
+
+<Note>
+The `import.meta.dir` property is a Bun-specific feature that provides the directory of the current module. If you're using Node.js, use `__dirname` or `import.meta.url` with path manipulation instead.
+</Note>
+
+## Glob patterns
+
+Glob patterns use wildcards to match files:
+
+- `*` - Matches any characters except `/`
+- `**` - Matches any characters including `/` (recursive)
+- `?` - Matches a single character
+- `[abc]` - Matches any character in the brackets
+
+### Common patterns
+
+<CodeGroup>
+```ts Single directory
+// Load all TypeScript files in the events directory
+await globAllRouters(client, 'events/*.ts', import.meta.dir);
+```
+
+```ts Recursive
+// Load all TypeScript files in events and subdirectories
+await globAllRouters(client, 'events/**/*.ts', import.meta.dir);
+```
+
+```ts Multiple patterns
+// Load from multiple directories
+await globAllRouters(
+  client,
+  ['events/**/*.ts', 'interactions/**/*.ts', 'commands/**/*.ts'],
+  import.meta.dir,
+);
+```
+
+```ts Specific files
+// Load only files matching a pattern
+await globAllRouters(client, 'events/**/ready.*.ts', import.meta.dir);
+```
+</CodeGroup>
+
+## How automatic loading works
+
+The loading process happens in four stages:
+
+### 1. File discovery
+
+Mygourd uses glob patterns to find all matching files:
+
+```ts
+// From source/lib/routers/index.ts:38-44
+const patternList = typeof pattern === 'string' ? [pattern] : pattern;
+const globbed = await Promise.all(patternList.map((v) => glob(v, baseDir)));
+const valid = globbed.flat().flatMap(({ module, path }) =>
+  Object.values(module)
+    .filter((v) => shapeHandlers.some(({ check }) => check(v)))
+    .map((module) => ({ module: module as ModuleType, path })),
+);
+```
+
+### 2. Module filtering
+
+Each discovered module is checked against shape handlers to identify valid routers:
+
+```ts
+// From source/lib/routers/index.ts:17-36
+const shapeHandlers = [
+  {
+    check: isEventModule,
+    handler: (client: Client, modules: ModuleType[]) => {
+      registerEventRouters(
+        client,
+        modules.filter((v) => isEventModule(v)),
+      );
+    },
+  },
+  {
+    check: isInteractionModule,
+    handler: async (client: Client, modules: ModuleType[]) => {
+      await registerInteractionRouters(
+        client,
+        modules.filter((v) => isInteractionModule(v)),
+      );
+    },
+  },
+] as const;
+```
+
+### 3. Type-specific registration
+
+Valid modules are grouped by type and registered using the appropriate handler:
+
+```ts
+// From source/lib/routers/index.ts:51-56
+shapeHandlers.forEach(async ({ handler }) => {
+  await handler(
+    client,
+    valid.map(({ module }) => module),
+  );
+});
+```
+
+### 4. Event listener setup
+
+For each router type:
+- **Event routers**: Attached directly to the client using `client.on()`
+- **Interaction routers**: Registered with Discord's API and routed via `interactionCreate` events
+
+<Tip>
+Automatic loading is asynchronous because it needs to read files and register commands with Discord's API. Always use `await` when calling glob functions.
+</Tip>
+
+## Specialized glob functions
+
+While `globAllRouters` is recommended for most cases, mygourd also provides type-specific glob functions:
+
+### globEventRouters
+
+Load only event routers:
+
+```ts
+import { globEventRouters } from 'mygourd/events';
+
+await globEventRouters(client, 'events/**/*.ts', import.meta.dir);
+```
+
+### globInteractionRouters
+
+Load only interaction routers:
+
+```ts
+import { globInteractionRouters } from 'mygourd/interactions';
+
+await globInteractionRouters(client, 'interactions/**/*.ts', import.meta.dir);
+```
+
+<Note>
+These specialized functions are useful when you want fine-grained control over when different router types are loaded or when you're incrementally migrating a codebase.
+</Note>
+
+## File organization strategies
+
+### By feature
+
+Organize routers by the feature they implement:
+
+```
+routers/
+├── moderation/
+│   ├── ban.command.ts
+│   ├── kick.command.ts
+│   └── audit.events.ts
+├── music/
+│   ├── play.command.ts
+│   ├── skip.command.ts
+│   └── player.events.ts
+└── utility/
+    ├── ping.command.ts
+    └── info.command.ts
+```
+
+```ts
+await globAllRouters(client, 'routers/**/*.ts', import.meta.dir);
+```
+
+### By type
+
+Organize routers by their type (events vs interactions):
+
+```
+src/
+├── events/
+│   ├── ready.ts
+│   ├── message.ts
+│   └── voice.ts
+└── interactions/
+    ├── commands/
+    │   ├── ping.ts
+    │   └── info.ts
+    └── menus/
+        └── user-info.ts
+```
+
+```ts
+await globAllRouters(
+  client,
+  ['events/**/*.ts', 'interactions/**/*.ts'],
+  import.meta.dir,
+);
+```
+
+### Hybrid approach
+
+Combine both strategies:
+
+```
+src/
+├── features/
+│   ├── moderation/
+│   │   ├── commands.ts
+│   │   └── events.ts
+│   └── music/
+│       ├── commands.ts
+│       └── events.ts
+└── core/
+    └── ready.events.ts
+```
+
+```ts
+await globAllRouters(
+  client,
+  ['features/**/*.ts', 'core/**/*.ts'],
+  import.meta.dir,
+);
+```
+
+<Tip>
+Choose an organization strategy that matches your team's mental model. The glob pattern system is flexible enough to support any structure.
+</Tip>
+
+## Debugging automatic loading
+
+The glob functions return information about discovered modules:
+
+```ts
+const discovered = await globAllRouters(
+  client,
+  ['events/**/*.ts', 'interactions/**/*.ts'],
+  import.meta.dir,
+);
+
+console.log(`Loaded ${discovered.length} modules:`);
+discovered.forEach(({ path, module }) => {
+  console.log(`- ${path}`);
+});
+```
+
+This helps verify that your patterns are matching the expected files.
+
+### Common issues
+
+**No modules found**: Check that your pattern matches your file structure and that `baseDir` is set correctly.
+
+```ts
+// Wrong: pattern doesn't match structure
+await globAllRouters(client, 'events/**/*.ts', import.meta.dir);
+// With files in src/events/
+
+// Right: adjust pattern or baseDir
+await globAllRouters(client, 'src/events/**/*.ts', import.meta.dir);
+// Or
+await globAllRouters(client, 'events/**/*.ts', path.join(import.meta.dir, 'src'));
+```
+
+**Modules not loading**: Verify that you're using the correct router creation function:
+
+```ts
+// Wrong: plain export
+export const myHandler = { clientReady: () => {} };
+
+// Right: wrapped in createEventRouter
+export const myHandler = createEventRouter({
+  clientReady: () => {},
+});
+```
+
+<Warning>
+Files that match the glob pattern but don't export valid router modules are silently ignored. Always use router creation functions to ensure modules are properly branded.
+</Warning>
+
+## Performance considerations
+
+Automatic loading is efficient because:
+
+1. **Parallel processing**: Multiple glob patterns are processed concurrently
+2. **Single pass**: Each file is loaded and analyzed once
+3. **Lazy evaluation**: Files are only loaded when the glob function runs
+
+For large codebases with hundreds of routers, the loading time is typically under 100ms.
+
+## Manual loading alternative
+
+If you prefer explicit imports, you can skip automatic loading and register routers manually:
+
+```ts
+import { Client } from 'discord.js';
+import { registerEventRouters } from 'mygourd/events';
+import { registerInteractionRouters } from 'mygourd/interactions';
+
+import { readyEvents } from './events/ready';
+import { messageEvents } from './events/message';
+import { pingCommand } from './interactions/ping';
+import { infoCommand } from './interactions/info';
+
+const client = new Client({ intents: ['Guilds'] });
+
+registerEventRouters(client, [readyEvents, messageEvents]);
+await registerInteractionRouters(client, [pingCommand, infoCommand]);
+```
+
+This approach provides explicit control at the cost of more boilerplate.

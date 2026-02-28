@@ -1,0 +1,192 @@
+---
+title: Event routers
+description: Learn how mygourd's event router system simplifies Discord.js event handling with type-safe, modular event listeners
+---
+
+Event routers in mygourd provide a clean, type-safe way to handle Discord.js events. Instead of manually attaching event listeners to your client, you define event modules that are automatically discovered and registered.
+
+## How event routers work
+
+Event routers transform plain objects containing event handlers into branded modules that mygourd can automatically discover and register with your Discord.js client.
+
+The system works in three steps:
+
+1. **Create**: Define an event module using `createEventRouter`
+2. **Export**: Export the module from a file in your events directory
+3. **Load**: Use `globEventRouters` or `globAllRouters` to automatically discover and register all event modules
+
+## Creating event routers
+
+Use the `createEventRouter` function to create an event module. The function accepts an object where keys are Discord.js event names and values are handler functions:
+
+```ts
+import { createEventRouter } from 'mygourd/events';
+import consola from 'consola';
+
+export const loginEvents = createEventRouter({
+  clientReady: () => {
+    consola.info('The bot is ready!');
+  },
+});
+```
+
+### Type signature
+
+```ts
+type EventModuleShape = Partial<{
+  [K in keyof ClientEvents]: (..._args: ClientEvents[K]) => unknown;
+}>;
+
+export const createEventRouter = (
+  module: EventModuleShape
+): EventModule => {
+  // Returns a branded module with type safety
+};
+```
+
+<Note>
+The event router uses Discord.js's `ClientEvents` type to provide full type safety. Your IDE will autocomplete available events and enforce correct handler signatures.
+</Note>
+
+## Multiple event routers
+
+You can export multiple event routers from a single file, and each will be registered independently:
+
+```ts
+import { createEventRouter } from 'mygourd/events';
+import consola from 'consola';
+
+export const loginEvents = createEventRouter({
+  clientReady: () => {
+    consola.info('The bot is ready!');
+  },
+});
+
+export const loginEvents2 = createEventRouter({
+  clientReady: () => {
+    consola.info('The bot is ready, but in a different router!');
+  },
+});
+```
+
+Both routers will execute when the `clientReady` event fires.
+
+## Registering event routers
+
+### Manual registration
+
+For direct control, use `registerEventRouters` to manually register an array of event modules:
+
+```ts
+import { Client } from 'discord.js';
+import { registerEventRouters } from 'mygourd/events';
+import { loginEvents } from './events/login';
+
+const client = new Client({ intents: ['Guilds'] });
+
+registerEventRouters(client, [loginEvents]);
+```
+
+### Automatic registration with glob
+
+The recommended approach is to use `globEventRouters` to automatically discover and register all event modules matching a pattern:
+
+```ts
+import { Client } from 'discord.js';
+import { globEventRouters } from 'mygourd/events';
+
+const client = new Client({ intents: ['Guilds'] });
+
+await globEventRouters(client, 'events/**/*.ts', import.meta.dir);
+```
+
+<Tip>
+For most projects, use `globAllRouters` from `mygourd/routers` instead of `globEventRouters`. This unified function handles both events and interactions with a single call.
+</Tip>
+
+## Implementation details
+
+Under the hood, event routers use symbol branding to identify valid event modules:
+
+```ts
+// From source/lib/events/index.ts:10-11
+export const createEventRouter = (module: EventModuleShape): EventModule =>
+  Object.assign({ ...module }, { [eventModuleBrand]: true as const });
+```
+
+The registration process:
+
+```ts
+// From source/lib/events/index.ts:16-23
+export const registerEventRouters = (client: Client, modules: EventModule[]) =>
+  modules
+    .map(({ ...shape }) => shape)
+    .flatMap((v) => Object.entries(v))
+    .forEach((v) => {
+      client.setMaxListeners(client.getMaxListeners() + 1);
+      client.on(...v);
+    });
+```
+
+<Note>
+The system automatically increases the max listeners count for each registered handler to prevent Node.js memory leak warnings.
+</Note>
+
+## Type safety
+
+Event routers provide complete type safety through Discord.js's `ClientEvents` type:
+
+```ts
+type EventModuleShape = Partial<{
+  [K in keyof ClientEvents]: (..._args: ClientEvents[K]) => unknown;
+}>;
+```
+
+This ensures:
+
+- Only valid Discord.js event names are accepted
+- Handler functions receive correctly typed arguments
+- TypeScript will error if handler signatures don't match the event
+
+## Common patterns
+
+### Organizing by feature
+
+Structure your event routers by feature rather than by event type:
+
+```ts
+// events/voice.ts
+export const voiceEvents = createEventRouter({
+  voiceStateUpdate: (oldState, newState) => {
+    // Handle voice state changes
+  },
+});
+
+// events/messages.ts
+export const messageEvents = createEventRouter({
+  messageCreate: (message) => {
+    // Handle new messages
+  },
+});
+```
+
+### Sharing logic across handlers
+
+Since event modules are just JavaScript objects, you can share logic between handlers:
+
+```ts
+import { createEventRouter } from 'mygourd/events';
+
+const logActivity = (activity: string) => {
+  console.log(`Activity: ${activity}`);
+};
+
+export const loggingEvents = createEventRouter({
+  messageCreate: (message) => logActivity(`Message: ${message.id}`),
+  interactionCreate: (interaction) => logActivity(`Interaction: ${interaction.id}`),
+});
+```
+
+<Warning>
+Event handlers run synchronously by default. For async operations, make sure to handle errors appropriately to prevent unhandled promise rejections.
+</Warning>

@@ -1,0 +1,315 @@
+---
+title: Interaction routers
+description: Learn how to handle Discord slash commands and context menus with mygourd's type-safe interaction router system
+---
+
+Interaction routers provide a unified system for handling Discord slash commands and context menu interactions. They automatically register commands with Discord's API and route incoming interactions to the appropriate handlers.
+
+## How interaction routers work
+
+Interaction routers combine command definitions with their handlers into a single module. When registered, they:
+
+1. **Register** command definitions with Discord's API
+2. **Listen** for `interactionCreate` events
+3. **Route** interactions to the correct handler based on command name
+
+This happens automatically when you use `globInteractionRouters` or `globAllRouters`.
+
+## Creating interaction routers
+
+### Slash commands
+
+Use `createInteractionRouterCommand` to create a slash command router:
+
+```ts
+import { SlashCommandBuilder } from 'discord.js';
+import { createInteractionRouterCommand } from 'mygourd/interactions';
+
+export const pingCommand = createInteractionRouterCommand({
+  definition: new SlashCommandBuilder()
+    .setName('ping')
+    .setDescription('Pings the bot!'),
+  handler: async (event) => {
+    await event.reply({
+      content: 'pong',
+      flags: 'Ephemeral',
+    });
+  },
+});
+```
+
+### Context menus
+
+Use `createInteractionRouterMenu` to create a context menu router:
+
+```ts
+import { ContextMenuCommandBuilder, ApplicationCommandType } from 'discord.js';
+import { createInteractionRouterMenu } from 'mygourd/interactions';
+
+export const userInfoMenu = createInteractionRouterMenu({
+  definition: new ContextMenuCommandBuilder()
+    .setName('User Info')
+    .setType(ApplicationCommandType.User),
+  handler: async (event) => {
+    await event.reply({
+      content: `User: ${event.targetUser.tag}`,
+      flags: 'Ephemeral',
+    });
+  },
+});
+```
+
+## Type signatures
+
+### Interaction definition
+
+```ts
+type InteractionDefinition<T extends InteractionType> = {
+  definition: InteractionShapeMapper[T];
+  handler: (_event: InteractionEventMapper[T]) => unknown;
+};
+```
+
+### Type mappings
+
+```ts
+type InteractionEventMapper = {
+  commands: ChatInputCommandInteraction;
+  menus: ContextMenuCommandInteraction;
+};
+
+type InteractionShapeMapper = {
+  commands: SerializableShape | SlashCommandBuilder;
+  menus: ContextMenuCommandBuilder | SerializableShape;
+};
+```
+
+<Note>
+The type system ensures that command handlers receive `ChatInputCommandInteraction` and menu handlers receive `ContextMenuCommandInteraction`, providing full type safety.
+</Note>
+
+## Advanced: Manual module creation
+
+For advanced use cases, use `createInteractionRouter` to create a module with multiple commands and menus:
+
+```ts
+import { createInteractionRouter } from 'mygourd/interactions';
+import { SlashCommandBuilder } from 'discord.js';
+
+export const utilityCommands = createInteractionRouter({
+  commands: [
+    {
+      definition: new SlashCommandBuilder()
+        .setName('ping')
+        .setDescription('Check bot latency'),
+      handler: async (event) => {
+        await event.reply('Pong!');
+      },
+    },
+    {
+      definition: new SlashCommandBuilder()
+        .setName('info')
+        .setDescription('Get bot information'),
+      handler: async (event) => {
+        await event.reply('Bot info here!');
+      },
+    },
+  ],
+});
+```
+
+<Tip>
+For most cases, use `createInteractionRouterCommand` or `createInteractionRouterMenu` for simpler, cleaner code. Reserve `createInteractionRouter` for when you need to group related commands.
+</Tip>
+
+## Registering interaction routers
+
+### Automatic registration with glob
+
+The recommended approach is to use `globInteractionRouters` or `globAllRouters`:
+
+```ts
+import { Client } from 'discord.js';
+import { globInteractionRouters } from 'mygourd/interactions';
+
+const client = new Client({ intents: ['Guilds'] });
+
+await globInteractionRouters(client, 'interactions/**/*.ts', import.meta.dir);
+```
+
+### Manual registration
+
+For direct control, use `registerInteractionRouters`:
+
+```ts
+import { Client } from 'discord.js';
+import { registerInteractionRouters } from 'mygourd/interactions';
+import { pingCommand } from './interactions/ping';
+
+const client = new Client({ intents: ['Guilds'] });
+
+await registerInteractionRouters(client, [pingCommand]);
+```
+
+<Warning>
+Interaction registration is asynchronous and involves API calls to Discord. Always use `await` when registering interactions.
+</Warning>
+
+## Implementation details
+
+### Command routing
+
+Interaction routers use predicates to filter and route interactions:
+
+```ts
+// From source/lib/interactions/index.ts:46-49
+const predicateMapper = {
+  commands: (event: Interaction) => event.isChatInputCommand(),
+  menus: (event: Interaction) => event.isContextMenuCommand(),
+} as const;
+```
+
+When an interaction is received, the router:
+
+```ts
+// From source/lib/interactions/index.ts:68-75
+client.on('interactionCreate', (interaction) => {
+  if (!predicateMapper[key](interaction)) return;
+  definition.forEach(async (v) => {
+    if (v.definition.name === interaction.commandName)
+      await v.handler(interaction as never);
+  });
+});
+```
+
+### API registration
+
+Commands are automatically registered with Discord's API:
+
+```ts
+// From source/lib/interactions/index.ts:82-90
+const register = async (applicationId: string) => {
+  const interactions = definitions.flat().map((v) => v.definition.toJSON());
+  const res = await client.rest.put(
+    Routes.applicationCommands(applicationId),
+    { body: interactions },
+  );
+  const commands = res as APIApplicationCommand[];
+  results.push(...commands);
+};
+```
+
+<Note>
+Commands are registered both immediately (if the client is ready) and on the `clientReady` event to handle all initialization scenarios.
+</Note>
+
+## Retrieving command information
+
+Since command registration returns data asynchronously, use Discord's REST API to retrieve command metadata:
+
+```ts
+import {
+  type APIApplicationCommand,
+  chatInputApplicationCommandMention,
+  Client,
+  Routes,
+} from 'discord.js';
+import { lazy } from 'mygourd/utils';
+
+const commandDataCache = lazy(
+  (client: Client<true>) =>
+    client.rest.get(Routes.applicationCommands(client.user.id)) as Promise<
+      APIApplicationCommand[]
+    >,
+);
+
+const getCommandMention = async (
+  client: Client<true>,
+  name: string,
+  subcommand?: string,
+) => {
+  const cache = await commandDataCache(client);
+  const command = cache.find((c) => c.name === name);
+  if (command === undefined) return 'unknown';
+  return subcommand ?
+      chatInputApplicationCommandMention(name, subcommand, command.id)
+    : chatInputApplicationCommandMention(name, command.id);
+};
+```
+
+This pattern uses a lazy cache to fetch command data once and reuse it for generating command mentions.
+
+## Common patterns
+
+### Command with options
+
+```ts
+import { SlashCommandBuilder } from 'discord.js';
+import { createInteractionRouterCommand } from 'mygourd/interactions';
+
+export const echoCommand = createInteractionRouterCommand({
+  definition: new SlashCommandBuilder()
+    .setName('echo')
+    .setDescription('Repeats your message')
+    .addStringOption(option =>
+      option
+        .setName('message')
+        .setDescription('The message to repeat')
+        .setRequired(true)
+    ),
+  handler: async (event) => {
+    const message = event.options.getString('message', true);
+    await event.reply(message);
+  },
+});
+```
+
+### Error handling
+
+```ts
+import { createInteractionRouterCommand } from 'mygourd/interactions';
+import { SlashCommandBuilder } from 'discord.js';
+
+export const riskyCommand = createInteractionRouterCommand({
+  definition: new SlashCommandBuilder()
+    .setName('risky')
+    .setDescription('A command that might fail'),
+  handler: async (event) => {
+    try {
+      // Risky operation
+      await event.reply('Success!');
+    } catch (error) {
+      console.error('Command failed:', error);
+      await event.reply({
+        content: 'Something went wrong!',
+        flags: 'Ephemeral',
+      });
+    }
+  },
+});
+```
+
+### Deferred responses
+
+```ts
+import { createInteractionRouterCommand } from 'mygourd/interactions';
+import { SlashCommandBuilder } from 'discord.js';
+
+export const slowCommand = createInteractionRouterCommand({
+  definition: new SlashCommandBuilder()
+    .setName('slow')
+    .setDescription('A command that takes time'),
+  handler: async (event) => {
+    await event.deferReply();
+    
+    // Long-running operation
+    const result = await someSlowOperation();
+    
+    await event.editReply(result);
+  },
+});
+```
+
+<Tip>
+Always defer replies for commands that take more than 3 seconds to process. Discord requires a response within 3 seconds or the interaction will fail.
+</Tip>

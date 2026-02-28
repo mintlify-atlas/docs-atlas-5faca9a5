@@ -1,0 +1,136 @@
+---
+title: Installation
+description: Install mygourd and set up your development environment
+---
+
+# Installation
+
+Get started with mygourd by installing it with your preferred package manager.
+
+<Note>
+mygourd requires **Bun** as the runtime. Make sure you have [Bun installed](https://bun.sh) before proceeding.
+</Note>
+
+## Install mygourd
+
+<CodeGroup>
+
+```bash npm
+npm install mygourd discord.js arktype
+```
+
+```bash yarn
+yarn add mygourd discord.js arktype
+```
+
+```bash pnpm
+pnpm add mygourd discord.js arktype
+```
+
+```bash bun
+bun add mygourd discord.js arktype
+```
+
+</CodeGroup>
+
+## Dependencies
+
+mygourd has three peer dependencies:
+
+- **discord.js** - The Discord API wrapper (v14.25.1 or higher)
+- **arktype** - Runtime type validation for environment variables
+- **consola** - Console logging utilities (automatically installed)
+
+All dependencies are automatically installed when you install mygourd.
+
+## Project structure
+
+We recommend organizing your Discord bot with the following structure:
+
+```
+my-discord-bot/
+├── events/
+│   ├── ready.ts
+│   └── messages.ts
+├── interactions/
+│   ├── commands/
+│   │   ├── ping.ts
+│   │   └── help.ts
+│   └── menus/
+│       └── user-info.ts
+├── main.ts
+├── package.json
+└── .env
+```
+
+This structure allows mygourd to automatically discover and register your event handlers and interactions using glob patterns.
+
+## TypeScript configuration
+
+mygourd is built with TypeScript and requires certain TypeScript settings. Add this to your `tsconfig.json`:
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["bun-types"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}
+```
+
+<Tip>
+Bun automatically handles TypeScript compilation, so you don't need to run a separate build step during development.
+</Tip>
+
+## Environment setup
+
+Create a `.env` file in your project root to store your Discord bot token:
+
+```bash .env
+BOT_TOKEN=your_discord_bot_token_here
+```
+
+<Note>
+Never commit your `.env` file to version control. Add it to your `.gitignore` file to keep your bot token secure.
+</Note>
+
+## Get your Discord bot token
+
+If you don't have a Discord bot token yet:
+
+<Steps>
+
+<Step title="Go to the Discord Developer Portal">
+  Visit [discord.com/developers/applications](https://discord.com/developers/applications) and log in with your Discord account.
+</Step>
+
+<Step title="Create a new application">
+  Click "New Application", give it a name, and accept the Terms of Service.
+</Step>
+
+<Step title="Create a bot user">
+  Navigate to the "Bot" tab in the sidebar and click "Add Bot". Confirm by clicking "Yes, do it!".
+</Step>
+
+<Step title="Copy your token">
+  Under the "TOKEN" section, click "Reset Token" and then "Copy". Save this token in your `.env` file.
+</Step>
+
+<Step title="Enable intents">
+  Scroll down to "Privileged Gateway Intents" and enable the intents your bot needs (Message Content, Server Members, Presence, etc.).
+</Step>
+
+<Step title="Invite your bot">
+  Go to the "OAuth2" → "URL Generator" tab. Select the `bot` and `applications.commands` scopes, then select the permissions your bot needs. Use the generated URL to invite your bot to your server.
+</Step>
+
+</Steps>
+
+## Next steps
+
+Now that you have mygourd installed, continue to the [Quickstart](/quickstart) guide to build your first Discord bot.

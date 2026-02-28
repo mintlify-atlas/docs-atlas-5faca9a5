@@ -1,0 +1,193 @@
+---
+title: createInteractionRouterMenu
+description: Create a router for a single context menu interaction
+---
+
+The `createInteractionRouterMenu` function creates an interaction router module for a single context menu command. Context menus appear when right-clicking (or long-pressing on mobile) users or messages in Discord.
+
+## Function signature
+
+```typescript
+function createInteractionRouterMenu(
+  menu: InteractionDefinition<'menus'>
+): InteractionModule
+```
+
+## Parameters
+
+<ParamField path="menu" type="InteractionDefinition<'menus'>" required>
+  An object containing the context menu definition and handler.
+  
+  ```typescript
+  type InteractionDefinition<'menus'> = {
+    definition: ContextMenuCommandBuilder | SerializableShape;
+    handler: (event: ContextMenuCommandInteraction) => unknown;
+  }
+  ```
+  
+  <ul>
+    <li>`definition` - A Discord.js ContextMenuCommandBuilder instance or any object with a `name` property and `toJSON()` method</li>
+    <li>`handler` - An async function that receives a ContextMenuCommandInteraction and handles the menu execution</li>
+  </ul>
+</ParamField>
+
+## Return value
+
+<ResponseField name="InteractionModule" type="InteractionModule">
+  An interaction module that can be registered with `registerInteractionRouters` or auto-discovered by `globInteractionRouters`.
+</ResponseField>
+
+## Usage
+
+### User context menu
+
+```typescript
+import { ContextMenuCommandBuilder, ApplicationCommandType } from 'discord.js';
+import { createInteractionRouterMenu } from 'mygourd/interactions';
+
+export const userInfoMenu = createInteractionRouterMenu({
+  definition: new ContextMenuCommandBuilder()
+    .setName('User Info')
+    .setType(ApplicationCommandType.User),
+  handler: async (event) => {
+    const user = event.targetUser;
+    await event.reply({
+      content: `User: ${user.tag}\nID: ${user.id}\nCreated: ${user.createdAt.toDateString()}`,
+      flags: 'Ephemeral',
+    });
+  },
+});
+```
+
+### Message context menu
+
+```typescript
+import { ContextMenuCommandBuilder, ApplicationCommandType } from 'discord.js';
+import { createInteractionRouterMenu } from 'mygourd/interactions';
+
+export const messageAnalyzeMenu = createInteractionRouterMenu({
+  definition: new ContextMenuCommandBuilder()
+    .setName('Analyze Message')
+    .setType(ApplicationCommandType.Message),
+  handler: async (event) => {
+    const message = event.targetMessage;
+    const wordCount = message.content.split(/\s+/).length;
+    const charCount = message.content.length;
+    
+    await event.reply({
+      content: `Message statistics:\nWords: ${wordCount}\nCharacters: ${charCount}\nAuthor: ${message.author.tag}`,
+      flags: 'Ephemeral',
+    });
+  },
+});
+```
+
+### Report message menu
+
+```typescript
+import { ContextMenuCommandBuilder, ApplicationCommandType } from 'discord.js';
+import { createInteractionRouterMenu } from 'mygourd/interactions';
+
+export const reportMenu = createInteractionRouterMenu({
+  definition: new ContextMenuCommandBuilder()
+    .setName('Report Message')
+    .setType(ApplicationCommandType.Message),
+  handler: async (event) => {
+    const message = event.targetMessage;
+    
+    // Send report to moderation channel
+    const modChannel = await event.client.channels.fetch('MOD_CHANNEL_ID');
+    if (modChannel?.isTextBased()) {
+      await modChannel.send(
+        `Message reported by ${event.user.tag}:\n` +
+        `Author: ${message.author.tag}\n` +
+        `Content: ${message.content}\n` +
+        `Link: ${message.url}`
+      );
+    }
+    
+    await event.reply({
+      content: 'Message reported to moderators.',
+      flags: 'Ephemeral',
+    });
+  },
+});
+```
+
+### Avatar viewer menu
+
+```typescript
+import { ContextMenuCommandBuilder, ApplicationCommandType, EmbedBuilder } from 'discord.js';
+import { createInteractionRouterMenu } from 'mygourd/interactions';
+
+export const avatarMenu = createInteractionRouterMenu({
+  definition: new ContextMenuCommandBuilder()
+    .setName('View Avatar')
+    .setType(ApplicationCommandType.User),
+  handler: async (event) => {
+    const user = event.targetUser;
+    const avatarUrl = user.displayAvatarURL({ size: 4096 });
+    
+    const embed = new EmbedBuilder()
+      .setTitle(`${user.tag}'s Avatar`)
+      .setImage(avatarUrl)
+      .setColor('Blue');
+    
+    await event.reply({
+      embeds: [embed],
+      flags: 'Ephemeral',
+    });
+  },
+});
+```
+
+## Context menu types
+
+Discord supports two types of context menus:
+
+- `ApplicationCommandType.User` - Appears when right-clicking a user
+- `ApplicationCommandType.Message` - Appears when right-clicking a message
+
+Access the target using:
+- `event.targetUser` for user context menus
+- `event.targetMessage` for message context menus
+
+## Auto-discovery
+
+When using `globInteractionRouters` or `globAllRouters`, menus created with this function are automatically discovered and registered:
+
+```typescript
+// bot/index.ts
+import { Client } from 'discord.js';
+import { globAllRouters } from 'mygourd/routers';
+
+const client = new Client({ intents: ['Guilds'] });
+
+await globAllRouters(
+  client,
+  ['interactions/**/*.ts'],
+  import.meta.dir
+);
+```
+
+```typescript
+// bot/interactions/menus/user-info.ts
+import { ContextMenuCommandBuilder, ApplicationCommandType } from 'discord.js';
+import { createInteractionRouterMenu } from 'mygourd/interactions';
+
+export default createInteractionRouterMenu({
+  definition: new ContextMenuCommandBuilder()
+    .setName('User Info')
+    .setType(ApplicationCommandType.User),
+  handler: async (event) => {
+    await event.reply(`User: ${event.targetUser.tag}`);
+  },
+});
+```
+
+## Related functions
+
+- [createInteractionRouter](/api/interactions/create-interaction-router) - Create a router with multiple interaction types
+- [createInteractionRouterCommand](/api/interactions/create-command) - Create a router for slash commands
+- [registerInteractionRouters](/api/interactions/register-interaction-routers) - Register routers with Discord
+- [globInteractionRouters](/api/interactions/glob-interaction-routers) - Auto-discover and register routers

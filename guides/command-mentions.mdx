@@ -1,0 +1,311 @@
+---
+title: Command mentions
+description: Learn how to retrieve command IDs and create clickable command mentions in Discord
+---
+
+Discord allows you to create clickable mentions of slash commands in messages. To do this, you need the command ID from Discord's API. mygourd doesn't provide a built-in solution for this, but the README includes a recommended pattern.
+
+## Why command IDs are needed
+
+When you want to reference a command in a message, using the command name as plain text isn't ideal:
+
+```ts
+// This is just plain text - not clickable
+await message.reply(`Use the ping command to check latency`);
+```
+
+Instead, you want to create a clickable mention that shows the command:
+
+```ts
+// This creates a clickable command mention
+await message.reply(`Use </ping:123456789> to check latency`);
+```
+
+To create these mentions, you need to retrieve the command ID from Discord after registration.
+
+## Recommended implementation
+
+Here's the pattern recommended in the mygourd README:
+
+<Steps>
+  <Step title="Create a lazy cache for command data">
+    Import the necessary types and create a lazy-loaded cache:
+
+    ```ts
+    import {
+      type APIApplicationCommand,
+      chatInputApplicationCommandMention,
+      Client,
+      Routes,
+    } from 'discord.js';
+    import { lazy } from 'mygourd/utils';
+
+    const commandDataCache = lazy(
+      (client: Client<true>) =>
+        client.rest.get(Routes.applicationCommands(client.user.id)) as Promise<
+          APIApplicationCommand[]
+        >,
+    );
+    ```
+
+    <Note>
+      The `lazy` utility ensures the API call is only made once, and subsequent calls return the cached promise.
+    </Note>
+  </Step>
+
+  <Step title="Create a helper function">
+    Build a helper function to retrieve command mentions:
+
+    ```ts
+    const getCommandMention = async (
+      client: Client<true>,
+      name: string,
+      subcommand?: string,
+    ) => {
+      const cache = await commandDataCache(client);
+      const command = cache.find((c) => c.name === name);
+      if (command === undefined) return `unknown`;
+      return subcommand ?
+          chatInputApplicationCommandMention(name, subcommand, command.id)
+        : chatInputApplicationCommandMention(name, command.id);
+    };
+    ```
+  </Step>
+
+  <Step title="Use the helper in your code">
+    Call the helper function whenever you need a command mention:
+
+    ```ts
+    const pingMention = await getCommandMention(client, `ping`);
+    await channel.send(`Use ${pingMention} to check bot latency`);
+    ```
+  </Step>
+</Steps>
+
+## Complete example
+
+Here's a complete implementation you can add to your project:
+
+```ts utils/commands.ts
+import {
+  type APIApplicationCommand,
+  chatInputApplicationCommandMention,
+  Client,
+  Routes,
+} from 'discord.js';
+import { lazy } from 'mygourd/utils';
+
+const commandDataCache = lazy(
+  (client: Client<true>) =>
+    client.rest.get(Routes.applicationCommands(client.user.id)) as Promise<
+      APIApplicationCommand[]
+    >,
+);
+
+/**
+ * Retrieves a formatted command mention for use in messages
+ * @param client - The Discord client (must be ready)
+ * @param name - The command name
+ * @param subcommand - Optional subcommand name
+ * @returns A formatted command mention string
+ */
+export const getCommandMention = async (
+  client: Client<true>,
+  name: string,
+  subcommand?: string,
+) => {
+  const cache = await commandDataCache(client);
+  const command = cache.find((c) => c.name === name);
+  if (command === undefined) return `unknown`;
+  return subcommand ?
+      chatInputApplicationCommandMention(name, subcommand, command.id)
+    : chatInputApplicationCommandMention(name, command.id);
+};
+```
+
+## Usage examples
+
+### Basic command mention
+
+Reference a simple slash command:
+
+```ts
+import { getCommandMention } from './utils/commands';
+
+export const helpEvents = createEventRouter({
+  messageCreate: async (message) => {
+    if (message.content === `!help`) {
+      const pingCmd = await getCommandMention(message.client, `ping`);
+      const infoCmd = await getCommandMention(message.client, `info`);
+      
+      await message.reply(
+        `Available commands:\n` +
+        `${pingCmd} - Check bot latency\n` +
+        `${infoCmd} - Get bot information`
+      );
+    }
+  },
+});
+```
+
+### Subcommand mention
+
+Reference a subcommand within a command group:
+
+```ts
+const settingsShowCmd = await getCommandMention(
+  client,
+  `settings`,
+  `show`
+);
+
+await channel.send(
+  `Use ${settingsShowCmd} to view your current settings`
+);
+```
+
+### Error messages with command hints
+
+Provide helpful command mentions in error messages:
+
+```ts
+export const pingCommand = createInteractionRouterCommand({
+  definition: new SlashCommandBuilder()
+    .setName(`ping`)
+    .setDescription(`Pings the bot!`),
+  handler: async (event) => {
+    try {
+      await event.reply({
+        content: `Pong! Latency: ${event.client.ws.ping}ms`,
+      });
+    } catch (error) {
+      const helpCmd = await getCommandMention(event.client, `help`);
+      await event.reply({
+        content: `An error occurred. Try ${helpCmd} for assistance.`,
+        flags: `Ephemeral`,
+      });
+    }
+  },
+});
+```
+
+### Welcome message with commands
+
+Show new members which commands they can use:
+
+```ts
+import { getCommandMention } from './utils/commands';
+
+export const welcomeEvents = createEventRouter({
+  guildMemberAdd: async (member) => {
+    const channel = member.guild.systemChannel;
+    if (!channel) return;
+    
+    const startCmd = await getCommandMention(member.client, `start`);
+    const helpCmd = await getCommandMention(member.client, `help`);
+    
+    await channel.send(
+      `Welcome ${member}! Get started with ${startCmd} or use ${helpCmd} for help.`
+    );
+  },
+});
+```
+
+## How the cache works
+
+The `lazy` utility from mygourd ensures efficient caching:
+
+1. The first call to `commandDataCache(client)` fetches all commands from Discord's API
+2. The result is cached and reused for all subsequent calls
+3. This prevents unnecessary API calls while keeping command IDs up to date
+
+<Tip>
+  The cache is created per client instance, so if you restart your bot, the cache will refresh automatically with any command changes.
+</Tip>
+
+## Handling missing commands
+
+If a command doesn't exist, the helper returns `'unknown'`:
+
+```ts
+const mention = await getCommandMention(client, `nonexistent`);
+// Returns: 'unknown'
+```
+
+You can customize this behavior:
+
+```ts
+const getCommandMention = async (
+  client: Client<true>,
+  name: string,
+  subcommand?: string,
+) => {
+  const cache = await commandDataCache(client);
+  const command = cache.find((c) => c.name === name);
+  
+  if (command === undefined) {
+    // Option 1: Return the plain name
+    return `/${name}`;
+    
+    // Option 2: Return null to handle it explicitly
+    // return null;
+    
+    // Option 3: Throw an error
+    // throw new Error(`Command not found: ${name}`);
+  }
+  
+  return subcommand ?
+      chatInputApplicationCommandMention(name, subcommand, command.id)
+    : chatInputApplicationCommandMention(name, command.id);
+};
+```
+
+## Best practices
+
+<Accordion title="Cache command mentions in long-lived contexts">
+  For frequently used command mentions, consider caching them:
+  ```ts
+  let cachedPingMention: string | null = null;
+
+  export const getCachedPingMention = async (client: Client<true>) => {
+    if (!cachedPingMention) {
+      cachedPingMention = await getCommandMention(client, `ping`);
+    }
+    return cachedPingMention;
+  };
+  ```
+</Accordion>
+
+<Accordion title="Handle client ready state">
+  Ensure the client is ready before fetching command mentions:
+  ```ts
+  const getCommandMention = async (
+    client: Client,
+    name: string,
+  ) => {
+    if (!client.isReady()) {
+      throw new Error(`Client must be ready to fetch command mentions`);
+    }
+    // ... rest of implementation
+  };
+  ```
+</Accordion>
+
+<Accordion title="Type-safe command names">
+  Use TypeScript to ensure command names are valid:
+  ```ts
+  type CommandName = `ping` | `help` | `info` | `settings`;
+
+  const getCommandMention = async (
+    client: Client<true>,
+    name: CommandName,
+    subcommand?: string,
+  ) => {
+    // ... implementation
+  };
+  ```
+</Accordion>
+
+<Warning>
+  Command IDs are specific to your application and environment (development vs production). Make sure you're fetching IDs from the correct environment.
+</Warning>

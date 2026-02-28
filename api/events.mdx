@@ -1,0 +1,46 @@
+---
+title: Events
+description: Event routing system for Discord.js client events
+---
+
+The events module provides a type-safe event routing system for Discord.js applications. It allows you to create modular event handlers and automatically register them with your Discord client.
+
+## Import
+
+```typescript
+import {
+  createEventRouter,
+  isEventModule,
+  registerEventRouters,
+  globEventRouters
+} from 'mygourd/events';
+```
+
+## Available functions
+
+<CardGroup cols={2}>
+  <Card title="createEventRouter" href="/api/events/create-event-router">
+    Create a type-safe event router module
+  </Card>
+  
+  <Card title="registerEventRouters" href="/api/events/register-event-routers">
+    Register event modules with a Discord client
+  </Card>
+  
+  <Card title="globEventRouters" href="/api/events/glob-event-routers">
+    Discover and register event routers from files
+  </Card>
+</CardGroup>
+
+## Types
+
+The module exports the following types:
+
+- `EventModule` - A branded event module with type safety
+- `EventModuleShape` - Partial mapping of Discord.js client events to handlers
+
+## How it works
+
+Event modules are created using `createEventRouter` and are branded with a unique symbol for runtime validation. The module supports all Discord.js `ClientEvents` and provides automatic type inference for event handlers.
+
+Event handlers are registered with the Discord client using `registerEventRouters`, which automatically manages event listener limits and binds handlers to the appropriate events.

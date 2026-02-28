@@ -1,0 +1,264 @@
+---
+title: Environment validation
+description: Learn how to safely validate environment variables with mygourd's useEnv utility
+---
+
+mygourd provides `useEnv`, a powerful utility for validating environment variables using ArkType schemas. It ensures your bot has all required configuration before starting and provides clear error messages when validation fails.
+
+## Basic usage
+
+<Steps>
+  <Step title="Import the required functions">
+    Import `useEnv` from `mygourd/utils` and `type` from `arktype`:
+
+    ```ts
+    import { type } from 'arktype';
+    import { useEnv } from 'mygourd/utils';
+    ```
+  </Step>
+
+  <Step title="Define your environment schema">
+    Create a schema object with ArkType validators:
+
+    ```ts
+    const env = useEnv({
+      BOT_TOKEN: type(/[A-Za-z.]/).configure({ actual: `` }),
+    });
+    ```
+
+    <Note>
+      The schema uses ArkType's validation syntax. If validation fails, the process will exit with code 1 and display helpful error messages.
+    </Note>
+  </Step>
+
+  <Step title="Use the validated environment">
+    The returned object is fully typed and contains your validated environment variables:
+
+    ```ts
+    await login(client, env.BOT_TOKEN, () => {
+      consola.info(`Shutting down!`);
+    });
+    ```
+  </Step>
+</Steps>
+
+## How it works
+
+The `useEnv` function:
+
+1. Reads environment variables from `process.env`
+2. Validates them against your ArkType schema
+3. Returns the validated values with full type safety
+4. Exits the process with clear error messages if validation fails
+
+Here's the implementation from the source:
+
+```ts
+export const useEnv = <
+  const def extends object,
+  inferOut = type.infer.Out<def>,
+  output = inferOut extends object ? inferOut : never,
+>(
+  def: type.validate<def>,
+): output => {
+  const r = type.raw(def)(process.env) as output | type.errors;
+  if (!(r instanceof type.errors)) return r;
+
+  Object.entries(r.byPath).forEach(([k, v]) =>
+    consola.error(`Environment variable '${k}' ${v.problem}`),
+  );
+
+  process.exit(1);
+};
+```
+
+## Common validation patterns
+
+### Required string token
+
+Validate a Discord bot token with a regex pattern:
+
+```ts
+import { type } from 'arktype';
+import { useEnv } from 'mygourd/utils';
+
+const env = useEnv({
+  BOT_TOKEN: type(/[A-Za-z0-9._-]+/).configure({ actual: `` }),
+});
+```
+
+### Multiple environment variables
+
+Validate multiple environment variables at once:
+
+```ts
+import { type } from 'arktype';
+import { useEnv } from 'mygourd/utils';
+
+const env = useEnv({
+  BOT_TOKEN: type(`string`).configure({ actual: `` }),
+  GUILD_ID: type(`string`).configure({ actual: `` }),
+  LOG_LEVEL: type(`'debug' | 'info' | 'warn' | 'error'`).configure({ actual: `` }),
+});
+
+// All values are now type-safe
+consola.level = env.LOG_LEVEL;
+```
+
+### Optional variables with defaults
+
+Provide default values for optional environment variables:
+
+```ts
+import { type } from 'arktype';
+import { useEnv } from 'mygourd/utils';
+
+const env = useEnv({
+  BOT_TOKEN: type(`string`).configure({ actual: `` }),
+  PORT: type(`string`).configure({ actual: `3000` }),
+  NODE_ENV: type(`'development' | 'production'`).configure({ actual: `development` }),
+});
+```
+
+### Numeric validation
+
+Validate and parse numeric values:
+
+```ts
+import { type } from 'arktype';
+import { useEnv } from 'mygourd/utils';
+
+const env = useEnv({
+  BOT_TOKEN: type(`string`).configure({ actual: `` }),
+  MAX_RETRIES: type(`number`).configure({ actual: `3` }),
+  TIMEOUT_MS: type(`number`).configure({ actual: `5000` }),
+});
+```
+
+### URL validation
+
+Validate URLs with regex patterns:
+
+```ts
+import { type } from 'arktype';
+import { useEnv } from 'mygourd/utils';
+
+const env = useEnv({
+  BOT_TOKEN: type(`string`).configure({ actual: `` }),
+  WEBHOOK_URL: type(/^https?:\/\/.+/).configure({ actual: `` }),
+  DATABASE_URL: type(/^postgres:\/\/.+/).configure({ actual: `` }),
+});
+```
+
+## Complete example
+
+Here's a complete bot setup using `useEnv`:
+
+```ts
+import { type } from 'arktype';
+import consola from 'consola';
+import { Client } from 'discord.js';
+import { globAllRouters } from 'mygourd/routers';
+import { login, useEnv } from 'mygourd/utils';
+
+const env = useEnv({
+  BOT_TOKEN: type(/[A-Za-z.]/).configure({ actual: `` }),
+});
+
+const client = new Client({
+  intents: [`Guilds`, `MessageContent`, `GuildMessages`, `GuildVoiceStates`],
+});
+
+await globAllRouters(
+  client,
+  [`events/**/*.ts`, `interactions/**/*.ts`],
+  import.meta.dir,
+);
+
+await login(client, env.BOT_TOKEN, () => {
+  consola.info(`Shutting down!`);
+});
+```
+
+## Error handling
+
+When validation fails, `useEnv` provides clear error messages:
+
+<Accordion title="Example: Missing required variable">
+  If `BOT_TOKEN` is not set in your environment:
+  ```
+  ERROR Environment variable 'BOT_TOKEN' must be a string
+  ```
+  The process will then exit with code 1.
+</Accordion>
+
+<Accordion title="Example: Invalid format">
+  If a variable doesn't match the expected pattern:
+  ```
+  ERROR Environment variable 'GUILD_ID' must match pattern /^[0-9]+$/
+  ```
+</Accordion>
+
+<Accordion title="Example: Invalid enum value">
+  If a variable doesn't match one of the allowed values:
+  ```
+  ERROR Environment variable 'LOG_LEVEL' must be 'debug' | 'info' | 'warn' | 'error'
+  ```
+</Accordion>
+
+## Best practices
+
+<Tip>
+  Always validate your environment variables at the start of your application, before initializing the Discord client or connecting to any services.
+</Tip>
+
+<Warning>
+  Never commit `.env` files containing actual tokens or secrets to version control. Use `.env.example` files with placeholder values instead.
+</Warning>
+
+<Accordion title="Use descriptive variable names">
+  Choose clear, descriptive names for your environment variables:
+  ```ts
+  const env = useEnv({
+    DISCORD_BOT_TOKEN: type(`string`),      // Good
+    DATABASE_CONNECTION_URL: type(`string`), // Good
+    TOKEN: type(`string`),                   // Too vague
+    DB: type(`string`),                      // Too abbreviated
+  });
+  ```
+</Accordion>
+
+<Accordion title="Group related variables">
+  Organize your environment schema logically:
+  ```ts
+  const env = useEnv({
+    // Discord configuration
+    BOT_TOKEN: type(`string`).configure({ actual: `` }),
+    GUILD_ID: type(`string`).configure({ actual: `` }),
+    
+    // Database configuration
+    DATABASE_URL: type(`string`).configure({ actual: `` }),
+    DATABASE_POOL_SIZE: type(`number`).configure({ actual: `10` }),
+    
+    // Application configuration
+    LOG_LEVEL: type(`'debug' | 'info' | 'warn' | 'error'`).configure({ actual: `info` }),
+    NODE_ENV: type(`'development' | 'production'`).configure({ actual: `development` }),
+  });
+  ```
+</Accordion>
+
+<Accordion title="Document your environment variables">
+  Create an `.env.example` file documenting all required variables:
+  ```bash
+  # Discord Bot Configuration
+  BOT_TOKEN=your_bot_token_here
+  GUILD_ID=your_guild_id_here
+  
+  # Database Configuration
+  DATABASE_URL=postgres://localhost:5432/mybot
+  
+  # Application Settings
+  LOG_LEVEL=info
+  NODE_ENV=development
+  ```
+</Accordion>

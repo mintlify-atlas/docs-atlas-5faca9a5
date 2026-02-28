@@ -1,0 +1,203 @@
+---
+title: Creating commands
+description: Learn how to create slash commands and context menus with mygourd
+---
+
+mygourd provides a simple and type-safe way to create Discord slash commands and context menus using router functions.
+
+## Creating slash commands
+
+<Steps>
+  <Step title="Import the required functions">
+    Import `createInteractionRouterCommand` from `mygourd/interactions` and `SlashCommandBuilder` from `discord.js`:
+
+    ```ts
+    import { SlashCommandBuilder } from 'discord.js';
+    import { createInteractionRouterCommand } from 'mygourd/interactions';
+    ```
+  </Step>
+
+  <Step title="Define your command">
+    Create a command using `createInteractionRouterCommand` with a definition and handler:
+
+    ```ts
+    export const pingCommand = createInteractionRouterCommand({
+      definition: new SlashCommandBuilder()
+        .setName(`ping`)
+        .setDescription(`Pings the bot!`),
+      handler: async (event) => {
+        await event.reply({
+          content: `pong`,
+          flags: `Ephemeral`,
+        });
+      },
+    });
+    ```
+
+    <Note>
+      The handler receives the full interaction event with complete type safety based on your command definition.
+    </Note>
+  </Step>
+
+  <Step title="Place the file in your interactions directory">
+    Save your command file in a location that matches your glob pattern (e.g., `interactions/commands/ping.ts`).
+
+    The command will be automatically discovered and registered when you use `globAllRouters` or `globInteractionRouters`.
+  </Step>
+</Steps>
+
+## Command with options
+
+You can create commands with various options using Discord.js builders:
+
+```ts
+import { SlashCommandBuilder } from 'discord.js';
+import { createInteractionRouterCommand } from 'mygourd/interactions';
+
+export const greetCommand = createInteractionRouterCommand({
+  definition: new SlashCommandBuilder()
+    .setName(`greet`)
+    .setDescription(`Greets a user`)
+    .addUserOption(option =>
+      option
+        .setName(`user`)
+        .setDescription(`The user to greet`)
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option
+        .setName(`message`)
+        .setDescription(`Custom greeting message`)
+        .setRequired(false)
+    ),
+  handler: async (event) => {
+    const user = event.options.getUser(`user`, true);
+    const message = event.options.getString(`message`) ?? `Hello`;
+    
+    await event.reply({
+      content: `${message}, ${user}!`,
+    });
+  },
+});
+```
+
+## Creating context menus
+
+Context menus (user and message menus) work similarly to slash commands:
+
+```ts
+import { ContextMenuCommandBuilder, ApplicationCommandType } from 'discord.js';
+import { createInteractionRouterMenu } from 'mygourd/interactions';
+
+export const userInfoMenu = createInteractionRouterMenu({
+  definition: new ContextMenuCommandBuilder()
+    .setName(`Get User Info`)
+    .setType(ApplicationCommandType.User),
+  handler: async (event) => {
+    if (!event.isUserContextMenuCommand()) return;
+    
+    const user = event.targetUser;
+    await event.reply({
+      content: `User: ${user.tag}\nID: ${user.id}`,
+      flags: `Ephemeral`,
+    });
+  },
+});
+```
+
+## Multiple commands in one file
+
+You can export multiple commands from a single file using `createInteractionRouter`:
+
+```ts
+import { SlashCommandBuilder } from 'discord.js';
+import { createInteractionRouter } from 'mygourd/interactions';
+
+export const utilityCommands = createInteractionRouter({
+  commands: [
+    {
+      definition: new SlashCommandBuilder()
+        .setName(`ping`)
+        .setDescription(`Check bot latency`),
+      handler: async (event) => {
+        await event.reply(`Pong! Latency: ${event.client.ws.ping}ms`);
+      },
+    },
+    {
+      definition: new SlashCommandBuilder()
+        .setName(`info`)
+        .setDescription(`Get bot information`),
+      handler: async (event) => {
+        await event.reply(`Bot is running!`);
+      },
+    },
+  ],
+});
+```
+
+<Tip>
+  For better organization, use `createInteractionRouterCommand` for single commands and `createInteractionRouter` when grouping related commands together.
+</Tip>
+
+## Registering commands
+
+Commands are automatically discovered and registered when you use the glob functions:
+
+```ts
+import { Client } from 'discord.js';
+import { globAllRouters } from 'mygourd/routers';
+
+const client = new Client({ intents: [`Guilds`] });
+
+await globAllRouters(
+  client,
+  [`events/**/*.ts`, `interactions/**/*.ts`],
+  import.meta.dir,
+);
+```
+
+<Note>
+  Commands are automatically registered with Discord's API when your bot starts. Make sure your bot has the `applications.commands` scope.
+</Note>
+
+## Best practices
+
+<Accordion title="Organize commands by category">
+  Structure your commands in folders by category:
+  ```
+  interactions/
+  ├── commands/
+  │   ├── moderation/
+  │   │   ├── ban.ts
+  │   │   └── kick.ts
+  │   └── utility/
+  │       ├── ping.ts
+  │       └── info.ts
+  ```
+</Accordion>
+
+<Accordion title="Use ephemeral responses for sensitive data">
+  When replying with sensitive or user-specific information, use the `Ephemeral` flag:
+  ```ts
+  await event.reply({
+    content: `Your API key: ...`,
+    flags: `Ephemeral`,
+  });
+  ```
+</Accordion>
+
+<Accordion title="Handle errors gracefully">
+  Always wrap your handler logic in try-catch blocks:
+  ```ts
+  handler: async (event) => {
+    try {
+      // Your command logic
+    } catch (error) {
+      await event.reply({
+        content: `An error occurred!`,
+        flags: `Ephemeral`,
+      });
+    }
+  }
+  ```
+</Accordion>

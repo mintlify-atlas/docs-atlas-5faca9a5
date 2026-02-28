@@ -1,0 +1,56 @@
+---
+title: Routers
+description: Unified router system for automatically discovering and registering modules
+---
+
+The routers module provides a unified system for automatically discovering and registering both event and interaction modules from your filesystem. It combines the functionality of both the events and interactions modules into a single convenient API.
+
+## Import
+
+```typescript
+import { globAllRouters } from 'mygourd/routers';
+```
+
+## Available functions
+
+<CardGroup cols={1}>
+  <Card title="globAllRouters" href="/api/routers/glob-all-routers">
+    Discover and register all event and interaction routers
+  </Card>
+</CardGroup>
+
+## How it works
+
+The `globAllRouters` function:
+
+1. Accepts one or more glob patterns to search for module files
+2. Discovers all modules that match the patterns
+3. Filters for valid event and interaction modules
+4. Automatically registers them with the Discord client
+
+This provides a convenient way to load all your bot's modules in a single call, rather than managing separate glob calls for events and interactions.
+
+## Example usage
+
+```typescript
+import { Client } from 'discord.js';
+import { globAllRouters } from 'mygourd/routers';
+
+const client = new Client({ intents: [...] });
+
+// Load all modules from multiple directories
+await globAllRouters(client, [
+  'src/commands/**/*.ts',
+  'src/events/**/*.ts'
+]);
+
+await client.login(process.env.DISCORD_TOKEN);
+```
+
+## Supported module types
+
+The function automatically detects and handles:
+- Event modules (created with `createEventRouter`)
+- Interaction modules (created with `createInteractionRouter`)
+
+Each module type is processed using its appropriate registration handler, ensuring proper setup with the Discord client.

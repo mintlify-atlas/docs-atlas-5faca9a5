@@ -1,0 +1,134 @@
+---
+title: login
+description: Login to Discord with graceful shutdown handling for SIGINT and SIGTERM
+---
+
+## Function signature
+
+```ts
+export const login = async (
+  client: Client,
+  token: string,
+  shutdownHandler?: () => Promise<void> | void,
+  shutdownTimeout: number = 30_000,
+) => Promise<void>
+```
+
+## Description
+
+A convenience function that logs into Discord and sets up graceful shutdown handling for SIGINT (Ctrl+C) and SIGTERM signals. Optionally executes a custom shutdown handler before destroying the client and exiting the process.
+
+## Parameters
+
+<ParamField path="client" type="Client" required>
+  The Discord.js client instance to login with
+</ParamField>
+
+<ParamField path="token" type="string" required>
+  The Discord bot token for authentication
+</ParamField>
+
+<ParamField path="shutdownHandler" type="() => Promise<void> | void">
+  Optional custom function to execute during shutdown, before the client is destroyed. Can be async or synchronous
+</ParamField>
+
+<ParamField path="shutdownTimeout" type="number" default="30000">
+  Maximum time in milliseconds to wait for graceful shutdown before force exiting. Defaults to 30 seconds
+</ParamField>
+
+## Returns
+
+<ResponseField name="return" type="Promise<void>">
+  A promise that resolves when the client successfully logs in
+</ResponseField>
+
+## Usage
+
+### Basic login
+
+```ts
+import { Client } from 'discord.js';
+import { login } from 'mygourd/utils';
+
+const client = new Client({
+  intents: ['Guilds', 'MessageContent', 'GuildMessages'],
+});
+
+await login(client, 'YOUR_BOT_TOKEN');
+```
+
+### With shutdown handler
+
+```ts
+import consola from 'consola';
+import { Client } from 'discord.js';
+import { login } from 'mygourd/utils';
+
+const client = new Client({
+  intents: ['Guilds', 'MessageContent', 'GuildMessages'],
+});
+
+await login(client, 'YOUR_BOT_TOKEN', () => {
+  consola.info('Shutting down!');
+});
+```
+
+### Complete example with useEnv
+
+```ts
+import { type } from 'arktype';
+import consola from 'consola';
+import { Client } from 'discord.js';
+import { globAllRouters } from 'mygourd/routers';
+import { login, useEnv } from 'mygourd/utils';
+
+const env = useEnv({
+  BOT_TOKEN: type(/[A-Za-z.]/).configure({ actual: '' }),
+});
+
+const client = new Client({
+  intents: ['Guilds', 'MessageContent', 'GuildMessages', 'GuildVoiceStates'],
+});
+
+await globAllRouters(
+  client,
+  ['events/**/*.ts', 'interactions/**/*.ts'],
+  import.meta.dir,
+);
+
+await login(client, env.BOT_TOKEN, () => {
+  consola.info('Shutting down!');
+});
+```
+
+### Custom shutdown timeout
+
+```ts
+import { Client } from 'discord.js';
+import { login } from 'mygourd/utils';
+
+const client = new Client({
+  intents: ['Guilds'],
+});
+
+// Allow 60 seconds for graceful shutdown
+await login(client, 'YOUR_BOT_TOKEN', async () => {
+  // Cleanup logic here
+  await saveState();
+}, 60_000);
+```
+
+## Shutdown behavior
+
+When a SIGINT or SIGTERM signal is received:
+
+1. Prevents duplicate shutdown attempts (subsequent signals are ignored)
+2. Starts a timeout timer that force exits after the specified timeout period
+3. Executes the custom `shutdownHandler` if provided (awaits if it's a Promise)
+4. Destroys the Discord.js client
+5. Exits the process with code 0 on success, or code 1 if the timeout is reached
+
+## Related
+
+- [useEnv](/api/utils/use-env)
+- [globAllRouters](/api/routers/glob-all-routers)

@@ -1,0 +1,106 @@
+---
+title: createInteractionRouter
+description: Create a router that handles multiple interaction types in one module
+---
+
+The `createInteractionRouter` function creates an interaction router module that can handle multiple interaction types (commands, menus) in a single module. This is the base function used internally by the specialized creation functions.
+
+## Function signature
+
+```typescript
+function createInteractionRouter(
+  module: InteractionModuleShape
+): InteractionModule
+```
+
+## Parameters
+
+<ParamField path="module" type="InteractionModuleShape" required>
+  An object containing interaction definitions, organized by interaction type.
+  
+  ```typescript
+  type InteractionModuleShape = Partial<{
+    commands: InteractionDefinition<'commands'>[];
+    menus: InteractionDefinition<'menus'>[];
+  }>
+  ```
+  
+  Each key can contain an array of interaction definitions with a `definition` (the Discord.js builder) and a `handler` function.
+</ParamField>
+
+## Return value
+
+<ResponseField name="InteractionModule" type="InteractionModule">
+  A branded interaction module that can be registered with `registerInteractionRouters` or discovered by `globInteractionRouters`.
+  
+  The returned module is the same as the input but with an internal brand symbol that marks it as a valid interaction module.
+</ResponseField>
+
+## Usage
+
+For most use cases, you should use the specialized creation functions like `createInteractionRouterCommand` or `createInteractionRouterMenu`. Use `createInteractionRouter` directly when you need to group multiple interaction types in one module.
+
+### Basic example
+
+```typescript
+import { SlashCommandBuilder, ContextMenuCommandBuilder, ApplicationCommandType } from 'discord.js';
+import { createInteractionRouter } from 'mygourd/interactions';
+
+export const utilityModule = createInteractionRouter({
+  commands: [
+    {
+      definition: new SlashCommandBuilder()
+        .setName('info')
+        .setDescription('Get bot information'),
+      handler: async (event) => {
+        await event.reply('Bot version 1.0.0');
+      },
+    },
+  ],
+  menus: [
+    {
+      definition: new ContextMenuCommandBuilder()
+        .setName('User Info')
+        .setType(ApplicationCommandType.User),
+      handler: async (event) => {
+        await event.reply(`User: ${event.targetUser.tag}`);
+      },
+    },
+  ],
+});
+```
+
+### Multiple commands in one module
+
+```typescript
+import { SlashCommandBuilder } from 'discord.js';
+import { createInteractionRouter } from 'mygourd/interactions';
+
+export const moderationModule = createInteractionRouter({
+  commands: [
+    {
+      definition: new SlashCommandBuilder()
+        .setName('ban')
+        .setDescription('Ban a user'),
+      handler: async (event) => {
+        // Ban logic
+      },
+    },
+    {
+      definition: new SlashCommandBuilder()
+        .setName('kick')
+        .setDescription('Kick a user'),
+      handler: async (event) => {
+        // Kick logic
+      },
+    },
+  ],
+});
+```
+
+## Related functions
+
+- [createInteractionRouterCommand](/api/interactions/create-command) - Create a router with a single command
+- [createInteractionRouterMenu](/api/interactions/create-menu) - Create a router with a single context menu
+- [registerInteractionRouters](/api/interactions/register-interaction-routers) - Register routers with Discord
+- [globInteractionRouters](/api/interactions/glob-interaction-routers) - Auto-discover and register routers

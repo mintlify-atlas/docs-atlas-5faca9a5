@@ -1,0 +1,173 @@
+---
+title: registerInteractionRouters
+description: Register interaction routers with Discord and set up event listeners
+---
+
+The `registerInteractionRouters` function registers interaction router modules with Discord's API and sets up the necessary event listeners to handle incoming interactions. This function is typically called automatically by `globInteractionRouters` or `globAllRouters`.
+
+## Function signature
+
+```typescript
+function registerInteractionRouters(
+  client: Client,
+  modules: InteractionModule[]
+): Promise<APIApplicationCommand[]>
+```
+
+## Parameters
+
+<ParamField path="client" type="Client" required>
+  A Discord.js Client instance. The client can be in any state, but commands will only be registered once the client is ready.
+</ParamField>
+
+<ParamField path="modules" type="InteractionModule[]" required>
+  An array of interaction router modules created with `createInteractionRouter`, `createInteractionRouterCommand`, or `createInteractionRouterMenu`.
+</ParamField>
+
+## Return value
+
+<ResponseField name="commands" type="Promise<APIApplicationCommand[]>">
+  A promise that resolves to an array of registered application commands from Discord's API.
+  
+  **Important**: This array may be empty initially and will be populated asynchronously when the client becomes ready. The function returns immediately, but command registration happens in the background.
+  
+  For most use cases, you should not rely on this return value. If you need to retrieve command data, see the "Retrieving command information" section below.
+</ResponseField>
+
+## Behavior
+
+The function performs the following operations:
+
+1. **Sets up event listeners**: Creates `interactionCreate` listeners for each interaction type (commands, menus)
+2. **Registers commands**: Sends all interaction definitions to Discord's API
+3. **Handles client state**: If the client is already ready, registers immediately. Otherwise, waits for the `clientReady` event
+4. **Routes interactions**: Automatically routes incoming interactions to their appropriate handlers based on the command name
+
+## Usage
+
+### Manual registration
+
+```typescript
+import { Client } from 'discord.js';
+import { registerInteractionRouters } from 'mygourd/interactions';
+import { pingCommand } from './commands/ping';
+import { greetCommand } from './commands/greet';
+
+const client = new Client({ intents: ['Guilds'] });
+
+await registerInteractionRouters(client, [
+  pingCommand,
+  greetCommand,
+]);
+
+await client.login(process.env.BOT_TOKEN);
+```
+
+### With manual module organization
+
+```typescript
+import { Client } from 'discord.js';
+import { createInteractionRouter, registerInteractionRouters } from 'mygourd/interactions';
+import { SlashCommandBuilder } from 'discord.js';
+
+const client = new Client({ intents: ['Guilds'] });
+
+const utilityModule = createInteractionRouter({
+  commands: [
+    {
+      definition: new SlashCommandBuilder()
+        .setName('ping')
+        .setDescription('Pings the bot'),
+      handler: async (event) => {
+        await event.reply('pong');
+      },
+    },
+    {
+      definition: new SlashCommandBuilder()
+        .setName('info')
+        .setDescription('Get bot info'),
+      handler: async (event) => {
+        await event.reply('Bot v1.0.0');
+      },
+    },
+  ],
+});
+
+await registerInteractionRouters(client, [utilityModule]);
+
+await client.login(process.env.BOT_TOKEN);
+```
+
+### With auto-discovery (recommended)
+
+Instead of manually calling this function, use `globInteractionRouters` or `globAllRouters` for automatic discovery:
+
+```typescript
+import { Client } from 'discord.js';
+import { globAllRouters } from 'mygourd/routers';
+
+const client = new Client({ intents: ['Guilds'] });
+
+// Automatically discovers and registers all routers
+await globAllRouters(
+  client,
+  ['events/**/*.ts', 'interactions/**/*.ts'],
+  import.meta.dir
+);
+
+await client.login(process.env.BOT_TOKEN);
+```
+
+## Retrieving command information
+
+The return value of `registerInteractionRouters` is not reliable for retrieving command data. Instead, use Discord.js's REST API directly with a caching strategy:
+
+```typescript
+import {
+  type APIApplicationCommand,
+  chatInputApplicationCommandMention,
+  Client,
+  Routes,
+} from 'discord.js';
+import { lazy } from 'mygourd/utils';
+
+const commandDataCache = lazy(
+  (client: Client<true>) =>
+    client.rest.get(Routes.applicationCommands(client.user.id)) as Promise<
+      APIApplicationCommand[]
+    >,
+);
+
+// Example: Get command mention for use in messages
+const getCommandMention = async (
+  client: Client<true>,
+  name: string,
+  subcommand?: string,
+) => {
+  const cache = await commandDataCache(client);
+  const command = cache.find((c) => c.name === name);
+  if (command === undefined) return 'unknown';
+  return subcommand
+    ? chatInputApplicationCommandMention(name, subcommand, command.id)
+    : chatInputApplicationCommandMention(name, command.id);
+};
+
+// Usage
+const mention = await getCommandMention(client, 'ping');
+await channel.send(`Use ${mention} to check bot latency!`);
+```
+
+## Important notes
+
+- This function modifies the client's max listeners count to accommodate multiple event handlers
+- Interaction handlers are called automatically when matching interactions are received
+- Command registration happens globally by default (available in all guilds)
+- The function sets up persistent event listeners that remain active for the lifetime of the client
+- Multiple interactions with the same name will all be triggered (allows for modular handler composition)
+
+## Related functions
+
+- [globInteractionRouters](/api/interactions/glob-interaction-routers) - Auto-discover and register routers
+- [createInteractionRouter](/api/interactions/create-interaction-router) - Create interaction router modules
+- [createInteractionRouterCommand](/api/interactions/create-command) - Create command routers
+- [createInteractionRouterMenu](/api/interactions/create-menu) - Create menu routers

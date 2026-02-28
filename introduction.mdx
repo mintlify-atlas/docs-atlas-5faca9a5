@@ -1,0 +1,99 @@
+---
+title: Introduction
+description: Type-safe Discord.js utilities with file-based routing for building Discord bots faster
+---
+
+# Introduction to mygourd
+
+mygourd is a type-safe utility library for Discord.js that simplifies bot development with file-based routing, automatic module discovery, and enforced type safety. Build Discord bots faster with less boilerplate.
+
+<Note>
+mygourd requires Bun as the runtime. Make sure you have Bun installed before getting started.
+</Note>
+
+## Key features
+
+mygourd provides powerful utilities to streamline your Discord bot development:
+
+- **File-based routing** - Automatically discover and register event handlers and slash commands from your file system
+- **Type-safe API** - Full TypeScript support with type-safe event handlers and interaction routers
+- **Zero boilerplate** - Create event handlers and commands with minimal code
+- **Environment validation** - Built-in environment variable validation using arktype
+- **Graceful shutdown** - Handle SIGINT/SIGTERM signals with custom cleanup logic
+
+## How it works
+
+Instead of manually registering each event handler and command, mygourd automatically discovers and registers them from your file structure:
+
+```ts
+// main.ts
+import { Client } from 'discord.js';
+import { globAllRouters } from 'mygourd/routers';
+import { login, useEnv } from 'mygourd/utils';
+import { type } from 'arktype';
+
+const env = useEnv({
+  BOT_TOKEN: type('string'),
+});
+
+const client = new Client({
+  intents: ['Guilds', 'MessageContent', 'GuildMessages'],
+});
+
+// Automatically discover and register all routers
+await globAllRouters(
+  client,
+  ['events/**/*.ts', 'interactions/**/*.ts'],
+  import.meta.dir,
+);
+
+await login(client, env.BOT_TOKEN);
+```
+
+That's it! mygourd will automatically find and register all your event handlers and slash commands.
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Install mygourd with your preferred package manager
+  </Card>
+  <Card
+    title="Quickstart"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Build your first Discord bot in minutes
+  </Card>
+  <Card
+    title="Event routers"
+    icon="calendar"
+    href="/concepts/event-routers"
+  >
+    Learn how to create type-safe event handlers
+  </Card>
+  <Card
+    title="Slash commands"
+    icon="terminal"
+    href="/concepts/interaction-routers"
+  >
+    Build slash commands and context menus
+  </Card>
+</CardGroup>
+
+## Why mygourd?
+
+Traditional Discord.js bots require manual registration of every event handler and command. As your bot grows, this becomes tedious and error-prone. mygourd solves this by:
+
+1. **Automatic discovery** - No more importing and registering each module manually
+2. **Type safety** - Catch errors at compile time, not runtime
+3. **Clean organization** - File-based routing keeps your code organized naturally
+4. **Less boilerplate** - Focus on your bot's logic, not infrastructure code
+
+<Tip>
+mygourd is perfect for both new Discord bots and refactoring existing ones. The file-based routing pattern scales from simple bots to complex applications.
+</Tip>

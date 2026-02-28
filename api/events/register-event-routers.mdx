@@ -1,0 +1,93 @@
+---
+title: registerEventRouters
+description: Register event routers with a Discord.js client
+---
+
+## Function signature
+
+```typescript
+function registerEventRouters(client: Client, modules: EventModule[]): void
+```
+
+Registers one or more event routers with a Discord.js client. This function extracts all event handlers from the modules and attaches them to the client using `client.on()`.
+
+## Parameters
+
+<ParamField path="client" type="Client" required>
+  The Discord.js client instance to register event handlers on.
+</ParamField>
+
+<ParamField path="modules" type="EventModule[]" required>
+  An array of event modules created with `createEventRouter`. Each module can contain multiple event handlers.
+</ParamField>
+
+## Returns
+
+<ResponseField name="void" type="void">
+  This function does not return a value. It modifies the client by registering event listeners.
+</ResponseField>
+
+## Usage example
+
+```typescript
+import { Client, GatewayIntentBits } from 'discord.js';
+import { createEventRouter, registerEventRouters } from 'mygourd/events';
+
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+});
+
+const readyRouter = createEventRouter({
+  clientReady: () => {
+    console.log('Bot is ready!');
+  },
+});
+
+const messageRouter = createEventRouter({
+  messageCreate: (message) => {
+    console.log(`Message from ${message.author.tag}`);
+  },
+});
+
+registerEventRouters(client, [readyRouter, messageRouter]);
+
+client.login(process.env.DISCORD_TOKEN);
+```
+
+## Registering a single module
+
+You can register a single event module by passing it in an array:
+
+```typescript
+import { Client, GatewayIntentBits } from 'discord.js';
+import { createEventRouter, registerEventRouters } from 'mygourd/events';
+
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds],
+});
+
+const events = createEventRouter({
+  clientReady: () => {
+    console.log('Ready!');
+  },
+  guildCreate: (guild) => {
+    console.log(`Joined guild: ${guild.name}`);
+  },
+});
+
+registerEventRouters(client, [events]);
+```
+
+## How it works
+
+The function performs the following steps:
+
+1. Iterates through each event module
+2. Extracts all event handlers from the module
+3. Converts them to `[eventName, handler]` pairs
+4. Increases the client's max listeners count for each handler
+5. Registers each handler with `client.on(eventName, handler)`
+
+## Max listeners
+
+The function automatically increases the client's max listeners count to prevent Node.js warnings when many event handlers are registered. This is especially useful when using multiple event routers or handling the same event multiple times.

@@ -1,0 +1,74 @@
+---
+title: globAllRouters
+description: Automatically discover and register event and interaction routers from glob patterns
+---
+
+## Function signature
+
+```ts
+export const globAllRouters = async (
+  client: Client,
+  pattern: string | string[],
+  baseDir?: string,
+) => Promise<{ module: ModuleType; path: string }[]>
+```
+
+## Description
+
+Automatically discovers, imports, and registers all event and interaction routers from files matching the provided glob pattern(s). This function simplifies bot initialization by scanning directories for router modules and registering them with your Discord.js client.
+
+## Parameters
+
+<ParamField path="client" type="Client" required>
+  The Discord.js client instance to register routers with
+</ParamField>
+
+<ParamField path="pattern" type="string | string[]" required>
+  One or more glob patterns to match router files. Supports standard glob syntax like `**/*.ts`
+</ParamField>
+
+<ParamField path="baseDir" type="string">
+  The base directory to search from. Defaults to the current working directory if not provided
+</ParamField>
+
+## Returns
+
+<ResponseField name="return" type="Promise<{ module: ModuleType; path: string }[]>">
+  A promise that resolves to an array of objects containing:
+  - `module`: The imported module (either EventModule or InteractionModule)
+  - `path`: The file path where the module was found
+</ResponseField>
+
+## Usage
+
+```ts
+import { Client } from 'discord.js';
+import { globAllRouters } from 'mygourd/routers';
+
+const client = new Client({
+  intents: ['Guilds', 'MessageContent', 'GuildMessages', 'GuildVoiceStates'],
+});
+
+// Scan multiple directories for routers
+await globAllRouters(
+  client,
+  ['events/**/*.ts', 'interactions/**/*.ts'],
+  import.meta.dir,
+);
+```
+
+## How it works
+
+1. Accepts one or more glob patterns and scans the base directory
+2. Imports all matching modules
+3. Filters for valid event and interaction router modules
+4. Automatically registers them with the appropriate handlers:
+   - Event routers are registered using `registerEventRouters`
+   - Interaction routers are registered using `registerInteractionRouters`
+5. Returns information about all valid modules found
+
+## Related
+
+- [Events API](/api/events/create-event-router)
+- [Interactions API](/api/interactions/create-command)
+- [glob utility](/api/utils/glob)

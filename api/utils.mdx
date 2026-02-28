@@ -1,0 +1,76 @@
+---
+title: Utils
+description: Utility functions for async operations, environment validation, and Discord client management
+---
+
+The utils module provides a collection of helpful utility functions for common tasks when building Discord bots, including async iteration, environment variable validation, module discovery, and client lifecycle management.
+
+## Import
+
+```typescript
+import {
+  collect,
+  entries,
+  useEnv,
+  glob,
+  lazy,
+  login
+} from 'mygourd/utils';
+```
+
+## Available functions
+
+<CardGroup cols={2}>
+  <Card title="collect" href="/api/utils/collect">
+    Collect all values from an async iterator into an array
+  </Card>
+  
+  <Card title="entries" href="/api/utils/entries">
+    Type-safe Object.entries that handles partials and strips symbol keys
+  </Card>
+  
+  <Card title="useEnv" href="/api/utils/use-env">
+    Validate environment variables with Arktype schemas
+  </Card>
+  
+  <Card title="glob" href="/api/utils/glob">
+    Find and import modules by glob pattern
+  </Card>
+  
+  <Card title="lazy" href="/api/utils/lazy">
+    Create a lazy value fetcher with memoization
+  </Card>
+  
+  <Card title="login" href="/api/utils/login">
+    Login to Discord with graceful shutdown handling
+  </Card>
+</CardGroup>
+
+## Function categories
+
+### Async utilities
+
+- **collect** - Simplifies working with async iterators by collecting all values into an array
+- **lazy** - Creates memoized async value fetchers for expensive operations
+
+### Type safety
+
+- **entries** - Enhanced Object.entries with better TypeScript inference and handling of partial objects
+- **useEnv** - Runtime validation of environment variables using Arktype schemas
+
+### Module discovery
+
+- **glob** - Dynamically import TypeScript/JavaScript modules using glob patterns, used internally by router functions
+
+### Client lifecycle
+
+- **login** - Handles Discord client login, SIGINT/SIGTERM signals, and graceful shutdown with custom cleanup handlers
+
+## Common use cases
+
+The utils module is designed to support common patterns in Discord bot development:
+
+- Validating required environment variables on startup
+- Dynamically loading command and event modules
+- Handling graceful shutdown when the bot is stopped
+- Working with async data sources and iterators

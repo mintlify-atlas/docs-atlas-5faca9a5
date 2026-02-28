@@ -1,0 +1,117 @@
+---
+title: lazy
+description: Create a lazy value fetcher that caches the result of an async operation
+---
+
+## Function signature
+
+```ts
+export const lazy = <LazyValue, FetcherArgs extends unknown[] = []>(
+  fetcher: (..._args: FetcherArgs) => Promise<LazyValue>,
+) => (...args: FetcherArgs) => Promise<LazyValue>
+```
+
+## Description
+
+Creates a lazy value fetcher that only executes the fetcher function once and caches the resulting Promise. Subsequent calls return the same cached Promise, preventing duplicate async operations.
+
+## Parameters
+
+<ParamField path="fetcher" type="(..._args: FetcherArgs) => Promise<LazyValue>" required>
+  An async function that fetches or computes the value. This function is only called once, on the first invocation of the returned lazy fetcher
+</ParamField>
+
+## Returns
+
+<ResponseField name="return" type="(...args: FetcherArgs) => Promise<LazyValue>">
+  A function that, when called, returns the cached Promise from the fetcher. The first call executes the fetcher; subsequent calls return the same Promise
+</ResponseField>
+
+## Usage
+
+### Basic example
+
+```ts
+import { lazy } from 'mygourd/utils';
+
+const expensiveOperation = lazy(async () => {
+  console.log('Fetching data...');
+  const response = await fetch('https://api.example.com/data');
+  return response.json();
+});
+
+// First call: executes the fetcher
+const data1 = await expensiveOperation();
+// Output: "Fetching data..."
+
+// Second call: returns cached Promise, no output
+const data2 = await expensiveOperation();
+```
+
+### Caching Discord application commands
+
+From the mygourd README, here's a practical example for caching command data:
+
+```ts
+import {
+  type APIApplicationCommand,
+  chatInputApplicationCommandMention,
+  Client,
+  Routes,
+} from 'discord.js';
+import { lazy } from 'mygourd/utils';
+
+const commandDataCache = lazy(
+  (client: Client<true>) =>
+    client.rest.get(Routes.applicationCommands(client.user.id)) as Promise<
+      APIApplicationCommand[]
+    >,
+);
+
+// Example usage: get command mention
+const getCommandMention = async (
+  client: Client<true>,
+  name: string,
+  subcommand?: string,
+) => {
+  const cache = await commandDataCache(client);
+  const command = cache.find((c) => c.name === name);
+  if (command === undefined) return 'unknown';
+  return subcommand
+    ? chatInputApplicationCommandMention(name, subcommand, command.id)
+    : chatInputApplicationCommandMention(name, command.id);
+};
+```
+
+### With arguments
+
+```ts
+import { lazy } from 'mygourd/utils';
+
+const fetchUserData = lazy(async (userId: string) => {
+  console.log(`Fetching user ${userId}`);
+  const response = await fetch(`https://api.example.com/users/${userId}`);
+  return response.json();
+});
+
+// First call with a user ID
+const user1 = await fetchUserData('123');
+// Output: "Fetching user 123"
+
+// Second call with the same ID returns cached result
+const user2 = await fetchUserData('123');
+// No output - returns cached Promise
+```
+
+## Notes
+
+- The fetcher is called only once, on the first invocation
+- The Promise itself is cached, so all callers share the same async operation
+- Arguments passed to the lazy fetcher are only used on the first call
+- Useful for expensive operations like API calls, database queries, or file I/O that should only happen once
+- The cache persists for the lifetime of the lazy fetcher function
+
+## Related
+
+- [Discord.js REST API](https://discord.js.org/docs/packages/rest/stable)
+- [collect](/api/utils/collect)

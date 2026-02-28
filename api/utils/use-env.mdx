@@ -1,0 +1,95 @@
+---
+title: useEnv
+description: Safely retrieve and validate environment variables with Arktype schemas
+---
+
+## Function signature
+
+```ts
+export const useEnv = <
+  const def extends object,
+  inferOut = type.infer.Out<def>,
+  output = inferOut extends object ? inferOut : never,
+>(
+  def: type.validate<def>,
+): output
+```
+
+## Description
+
+Safely retrieves and validates environment variables based on an Arktype object schema definition. If validation fails, the function logs detailed error messages and exits the process with code 1.
+
+## Parameters
+
+<ParamField path="def" type="type.validate<def>" required>
+  An Arktype object schema definition that describes the expected environment variables and their validation rules
+</ParamField>
+
+## Returns
+
+<ResponseField name="return" type="output">
+  The validated environment variables as a typed object matching the schema definition. If validation fails, the process exits instead of returning
+</ResponseField>
+
+## Usage
+
+### Basic example
+
+```ts
+import { type } from 'arktype';
+import { useEnv } from 'mygourd/utils';
+
+const env = useEnv({
+  BOT_TOKEN: type(/[A-Za-z.]/).configure({ actual: '' }),
+});
+
+// env.BOT_TOKEN is now available and validated
+console.log(env.BOT_TOKEN);
+```
+
+### Complete bot setup
+
+```ts
+import { type } from 'arktype';
+import { Client } from 'discord.js';
+import { globAllRouters } from 'mygourd/routers';
+import { login, useEnv } from 'mygourd/utils';
+
+const env = useEnv({
+  BOT_TOKEN: type(/[A-Za-z.]/).configure({ actual: '' }),
+});
+
+const client = new Client({
+  intents: ['Guilds', 'MessageContent', 'GuildMessages', 'GuildVoiceStates'],
+});
+
+await globAllRouters(
+  client,
+  ['events/**/*.ts', 'interactions/**/*.ts'],
+  import.meta.dir,
+);
+
+await login(client, env.BOT_TOKEN);
+```
+
+## Error handling
+
+When validation fails, the function:
+1. Logs each validation error with the environment variable name and problem description using `consola.error`
+2. Calls `process.exit(1)` to terminate the application
+
+Example error output:
+```
+Environment variable 'BOT_TOKEN' must match pattern /[A-Za-z.]/
+```
+
+## Notes
+
+- Uses Arktype's `configure({ onUndeclaredKey: 'delete' })` to ignore extra environment variables not in the schema
+- Validates against `process.env` automatically
+- Type-safe: the return type matches your schema definition
+
+## Related
+
+- [login](/api/utils/login)
+- [Arktype documentation](https://arktype.io/)

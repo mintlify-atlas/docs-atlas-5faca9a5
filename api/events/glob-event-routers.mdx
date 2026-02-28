@@ -1,0 +1,158 @@
+---
+title: globEventRouters
+description: Auto-discover and register event routers from files
+---
+
+## Function signature
+
+```typescript
+function globEventRouters(
+  client: Client,
+  pattern: string,
+  baseDir?: string
+): Promise<Array<{ module: EventModule; path: string }>>
+```
+
+Automatically discovers event routers from files matching a glob pattern, validates them, and registers them with the Discord.js client. This is the recommended way to load event handlers in larger applications.
+
+## Parameters
+
+<ParamField path="client" type="Client" required>
+  The Discord.js client instance to register event handlers on.
+</ParamField>
+
+<ParamField path="pattern" type="string" required>
+  A glob pattern to match event router files. Common patterns:
+  - `"**/*.js"` - All JavaScript files
+  - `"events/**/*.ts"` - All TypeScript files in events directory
+  - `"**/events/*.{js,ts}"` - JavaScript or TypeScript files in any events folder
+</ParamField>
+
+<ParamField path="baseDir" type="string">
+  Optional base directory to search from. Defaults to the current working directory if not specified.
+</ParamField>
+
+## Returns
+
+<ResponseField name="result" type="Array<{ module: EventModule; path: string }>">
+  A promise that resolves to an array of discovered and registered event modules with their file paths.
+  
+  Each object contains:
+  - `module` - The validated event module
+  - `path` - The file path where the module was found
+</ResponseField>
+
+## Usage example
+
+```typescript
+import { Client, GatewayIntentBits } from 'discord.js';
+import { globEventRouters } from 'mygourd/events';
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
+});
+
+// Auto-discover and register all event routers
+const discovered = await globEventRouters(
+  client,
+  'bot/events/**/*.ts',
+  process.cwd()
+);
+
+console.log(`Registered ${discovered.length} event routers`);
+
+client.login(process.env.DISCORD_TOKEN);
+```
+
+## File structure example
+
+Organize your event routers in separate files:
+
+```
+bot/
+└── events/
+    ├── login.ts
+    ├── messages.ts
+    └── members.ts
+```
+
+**bot/events/login.ts:**
+```typescript
+import { createEventRouter } from 'mygourd/events';
+
+export default createEventRouter({
+  clientReady: () => {
+    console.log('The bot is ready!');
+  },
+});
+```
+
+**bot/events/messages.ts:**
+```typescript
+import { createEventRouter } from 'mygourd/events';
+
+export default createEventRouter({
+  messageCreate: (message) => {
+    if (message.content === '!ping') {
+      message.reply('Pong!');
+    }
+  },
+});
+```
+
+**bot/events/members.ts:**
+```typescript
+import { createEventRouter } from 'mygourd/events';
+
+export default createEventRouter({
+  guildMemberAdd: (member) => {
+    console.log(`${member.user.tag} joined the server`);
+  },
+  guildMemberRemove: (member) => {
+    console.log(`${member.user.tag} left the server`);
+  },
+});
+```
+
+## Loading all event routers
+
+```typescript
+import { Client, GatewayIntentBits } from 'discord.js';
+import { globEventRouters } from 'mygourd/events';
+
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+});
+
+// Load all event routers from the bot/events directory
+await globEventRouters(client, 'bot/events/**/*.ts');
+
+client.login(process.env.DISCORD_TOKEN);
+```
+
+## Inspecting discovered routers
+
+You can inspect which routers were discovered and registered:
+
+```typescript
+import { globEventRouters } from 'mygourd/events';
+
+const discovered = await globEventRouters(client, 'events/**/*.ts');
+
+discovered.forEach(({ path, module }) => {
+  const events = Object.keys(module).filter(k => k !== Symbol.for('eventModuleBrand'));
+  console.log(`${path}: ${events.join(', ')}`);
+});
+```
+
+## Validation
+
+The function automatically validates discovered modules:
+
+- Only modules created with `createEventRouter` are registered
+- Invalid or malformed modules are filtered out
+- Each file can export multiple event modules, and all valid ones will be registered

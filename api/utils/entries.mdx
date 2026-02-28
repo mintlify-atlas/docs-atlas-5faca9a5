@@ -1,0 +1,193 @@
+---
+title: entries
+description: Type-safe wrapper over Object.entries that handles partial objects and symbol keys
+---
+
+## Function signature
+
+```ts
+export const entries = <T extends Record<string, unknown>>(o: T) =>
+  Object.entries(o).filter(
+    ([k, v]) => typeof k !== 'symbol' && v !== undefined,
+  ) as {
+    [K in keyof T]-?: [K, Exclude<T[K], undefined>];
+  }[Exclude<keyof T, symbol>][]
+```
+
+## Description
+
+A type-safe wrapper over `Object.entries` that provides better type inference and automatically filters out:
+- Symbol keys (strips any brands that use symbol keys)
+- Undefined values
+- Entries from partial objects
+
+The result is strongly typed, preserving the exact key-value pair types from the input object.
+
+## Parameters
+
+<ParamField path="o" type="T extends Record<string, unknown>" required>
+  The object to get entries from. Can be a regular object or a partial object
+</ParamField>
+
+## Type parameters
+
+<ParamField path="T" type="extends Record<string, unknown>">
+  The type of the input object. The return type is inferred from this to provide type-safe entries
+</ParamField>
+
+## Returns
+
+<ResponseField name="return" type="[K, Exclude<T[K], undefined>][]">
+  An array of key-value tuples, where:
+  - Keys are the string keys from the object (symbols excluded)
+  - Values have `undefined` removed from their type
+  - Each tuple is strongly typed with the exact key and value types
+</ResponseField>
+
+## Usage
+
+### Basic example
+
+```ts
+import { entries } from 'mygourd/utils';
+
+const config = {
+  name: 'MyBot',
+  version: '1.0.0',
+  enabled: true,
+};
+
+for (const [key, value] of entries(config)) {
+  console.log(`${key}: ${value}`);
+  // key is typed as 'name' | 'version' | 'enabled'
+  // value is typed correctly for each key
+}
+```
+
+### With partial objects
+
+```ts
+import { entries } from 'mygourd/utils';
+
+interface Config {
+  host?: string;
+  port?: number;
+  debug?: boolean;
+}
+
+const config: Config = {
+  host: 'localhost',
+  port: 3000,
+  // debug is undefined
+};
+
+const configEntries = entries(config);
+// Only returns [['host', 'localhost'], ['port', 3000]]
+// 'debug' is filtered out because it's undefined
+```
+
+### Filtering symbol keys
+
+```ts
+import { entries } from 'mygourd/utils';
+
+const brandSymbol = Symbol('brand');
+
+const obj = {
+  name: 'test',
+  value: 42,
+  [brandSymbol]: 'secret',
+};
+
+const objEntries = entries(obj);
+// Returns [['name', 'test'], ['value', 42]]
+// Symbol key is automatically filtered out
+```
+
+### Type-safe iteration
+
+```ts
+import { entries } from 'mygourd/utils';
+
+interface User {
+  id: string;
+  name: string;
+  age: number;
+  email?: string;
+}
+
+const user: User = {
+  id: '123',
+  name: 'Alice',
+  age: 30,
+};
+
+for (const [key, value] of entries(user)) {
+  // TypeScript knows the exact type of each key-value pair
+  if (key === 'age') {
+    // value is typed as number here
+    console.log(`Age: ${value}`);
+  }
+}
+```
+
+### Building query parameters
+
+```ts
+import { entries } from 'mygourd/utils';
+
+interface QueryParams {
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort?: string;
+}
+
+const params: QueryParams = {
+  search: 'discord',
+  page: 1,
+  limit: 10,
+};
+
+const queryString = entries(params)
+  .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+  .join('&');
+
+console.log(queryString);
+// Output: "search=discord&page=1&limit=10"
+// 'sort' is omitted because it's undefined
+```
+
+## Comparison with Object.entries
+
+```ts
+import { entries } from 'mygourd/utils';
+
+const obj = {
+  a: 'hello',
+  b: undefined,
+};
+
+// Standard Object.entries
+const standard = Object.entries(obj);
+// Returns [['a', 'hello'], ['b', undefined]]
+// Type: [string, string | undefined][]
+
+// mygourd entries
+const enhanced = entries(obj);
+// Returns [['a', 'hello']]
+// Type: ['a', string][] (undefined filtered out, keys preserved)
+```
+
+## Notes
+
+- Automatically filters out entries where the value is `undefined`
+- Removes symbol keys (useful for stripping type brands)
+- Preserves exact key types instead of widening to `string`
+- Type-safe: each tuple's key and value types are precisely inferred
+- The `-?` modifier removes optional flags from the resulting types
+
+## Related
+
+- [Object.entries (MDN)](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/entries)
+- [TypeScript Mapped Types](https://www.typescriptlang.org/docs/handbook/2/mapped-types.html)

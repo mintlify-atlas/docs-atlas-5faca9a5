@@ -1,0 +1,67 @@
+---
+title: Interactions
+description: Interaction routing system for Discord slash commands and context menus
+---
+
+The interactions module provides a powerful routing system for Discord interactions, including slash commands and context menu commands. It handles both registration with Discord's API and runtime routing of interaction events.
+
+## Import
+
+```typescript
+import {
+  createInteractionRouter,
+  createInteractionRouterCommand,
+  createInteractionRouterMenu,
+  isInteractionModule,
+  registerInteractionRouters,
+  globInteractionRouters
+} from 'mygourd/interactions';
+```
+
+## Available functions
+
+<CardGroup cols={2}>
+  <Card title="createInteractionRouter" href="/api/interactions/create-interaction-router">
+    Create an interaction router module
+  </Card>
+  
+  <Card title="createInteractionRouterCommand" href="/api/interactions/create-command">
+    Create a router for a single slash command
+  </Card>
+  
+  <Card title="createInteractionRouterMenu" href="/api/interactions/create-menu">
+    Create a router for a single context menu
+  </Card>
+  
+  <Card title="registerInteractionRouters" href="/api/interactions/register-interaction-routers">
+    Register interaction modules with Discord
+  </Card>
+  
+  <Card title="globInteractionRouters" href="/api/interactions/glob-interaction-routers">
+    Discover and register interactions from files
+  </Card>
+</CardGroup>
+
+## Types
+
+The module exports the following types:
+
+- `InteractionModule` - A branded interaction module
+- `InteractionModuleShape` - Mapping of interaction types to definitions
+- `InteractionDefinition<T>` - Type-safe interaction definition with handler
+- `InteractionType` - Union of supported interaction types (`commands` | `menus`)
+- `InteractionEventMapper` - Maps interaction types to Discord.js event types
+- `InteractionShapeMapper` - Maps interaction types to builder types
+- `SerializableShape` - Interface for serializable command definitions
+
+## How it works
+
+Interaction modules support two types of interactions:
+
+- **Commands** - Slash commands using `SlashCommandBuilder`
+- **Menus** - Context menu commands using `ContextMenuCommandBuilder`
+
+The module automatically handles:
+- Registering commands with Discord's API
+- Routing incoming interactions to the correct handler
+- Type-safe event handling based on interaction type

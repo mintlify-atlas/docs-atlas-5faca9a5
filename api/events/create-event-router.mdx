@@ -1,0 +1,100 @@
+---
+title: createEventRouter
+description: Create a Discord.js event router with type-safe event handlers
+---
+
+## Function signature
+
+```typescript
+function createEventRouter(module: EventModuleShape): EventModule
+```
+
+Creates an event router that can handle Discord.js client events with full type safety. The router is branded internally to distinguish it from plain objects.
+
+## Parameters
+
+<ParamField path="module" type="EventModuleShape" required>
+  An object containing Discord.js event handlers. Each key corresponds to a Discord.js client event name, and each value is a handler function with the appropriate signature for that event.
+  
+  ```typescript
+  type EventModuleShape = Partial<{
+    [K in keyof ClientEvents]: (..._args: ClientEvents[K]) => unknown;
+  }>;
+  ```
+</ParamField>
+
+## Returns
+
+<ResponseField name="EventModule" type="EventModule">
+  The branded event module that can be registered with `registerEventRouters` or auto-discovered by `globEventRouters`.
+  
+  ```typescript
+  type EventModule = EventModuleShape & {
+    [eventModuleBrand]: true;
+  };
+  ```
+</ResponseField>
+
+## Usage example
+
+```typescript
+import consola from 'consola';
+import { createEventRouter } from 'mygourd/events';
+
+export default createEventRouter({
+  clientReady: () => {
+    consola.info('The bot is ready!');
+  },
+  messageCreate: (message) => {
+    if (message.content === '!ping') {
+      message.reply('Pong!');
+    }
+  },
+  guildMemberAdd: (member) => {
+    console.log(`${member.user.tag} joined the server`);
+  },
+});
+```
+
+## Handling multiple events
+
+You can handle multiple Discord.js events in a single router:
+
+```typescript
+import { createEventRouter } from 'mygourd/events';
+
+export default createEventRouter({
+  messageCreate: (message) => {
+    // Handle message creation
+    console.log(`Message from ${message.author.tag}`);
+  },
+  messageDelete: (message) => {
+    // Handle message deletion
+    console.log(`Message deleted: ${message.content}`);
+  },
+  messageUpdate: (oldMessage, newMessage) => {
+    // Handle message updates
+    console.log(`Message edited from "${oldMessage.content}" to "${newMessage.content}"`);
+  },
+});
+```
+
+## Type safety
+
+The event handlers are fully type-safe based on Discord.js's `ClientEvents` type. TypeScript will enforce the correct parameters for each event:
+
+```typescript
+import { createEventRouter } from 'mygourd/events';
+
+export default createEventRouter({
+  // ✓ Correct: guildMemberAdd receives a GuildMember
+  guildMemberAdd: (member) => {
+    member.user.tag; // TypeScript knows this is valid
+  },
+  
+  // ✗ Error: Wrong parameter types
+  // guildMemberAdd: (message) => {
+  //   message.content; // TypeScript error
+  // },
+});
+```

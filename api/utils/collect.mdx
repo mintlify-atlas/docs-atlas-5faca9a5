@@ -1,0 +1,129 @@
+---
+title: collect
+description: Collect all values from an async iterator into an array
+---
+
+## Function signature
+
+```ts
+export const collect = async <T>(
+  iterator: AsyncIterableIterator<T>,
+): Promise<T[]>
+```
+
+## Description
+
+Collects all values from an async iterable iterator into a single array. This utility simplifies working with async iterators by awaiting all values and returning them as a standard array.
+
+## Parameters
+
+<ParamField path="iterator" type="AsyncIterableIterator<T>" required>
+  An async iterable iterator to collect values from. This can be any object that implements the async iterator protocol
+</ParamField>
+
+## Type parameters
+
+<ParamField path="T" type="any">
+  The type of values yielded by the iterator
+</ParamField>
+
+## Returns
+
+<ResponseField name="return" type="Promise<T[]>">
+  A promise that resolves to an array containing all values from the iterator, in the order they were yielded
+</ResponseField>
+
+## Usage
+
+### Basic example
+
+```ts
+import { collect } from 'mygourd/utils';
+
+async function* numberGenerator() {
+  yield 1;
+  yield 2;
+  yield 3;
+}
+
+const numbers = await collect(numberGenerator());
+console.log(numbers); // [1, 2, 3]
+```
+
+### With Bun's Glob API
+
+This is how it's used internally in the `glob` function:
+
+```ts
+import { Glob } from 'bun';
+import path from 'node:path';
+import { collect } from 'mygourd/utils';
+
+const pattern = '**/*.ts';
+const baseDir = process.cwd();
+
+const scanned = await collect(
+  new Glob(pattern).scan(path.join(baseDir))
+);
+
+console.log(`Found ${scanned.length} files`);
+```
+
+### Processing file streams
+
+```ts
+import { collect } from 'mygourd/utils';
+import { createReadStream } from 'node:fs';
+import { Readable } from 'node:stream';
+
+async function readLines(filename: string) {
+  const stream = createReadStream(filename, { encoding: 'utf-8' });
+  const lines = Readable.from(stream);
+  return await collect(lines);
+}
+
+const allLines = await readLines('data.txt');
+```
+
+### Custom async iterator
+
+```ts
+import { collect } from 'mygourd/utils';
+
+async function* fetchPages(apiUrl: string) {
+  let page = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    const response = await fetch(`${apiUrl}?page=${page}`);
+    const data = await response.json();
+    
+    yield data;
+    
+    hasMore = data.hasNextPage;
+    page++;
+  }
+}
+
+const allPages = await collect(fetchPages('https://api.example.com/data'));
+console.log(`Collected ${allPages.length} pages`);
+```
+
+## How it works
+
+1. Creates an empty array to store results
+2. Uses `for await...of` to iterate over the async iterator
+3. Pushes each yielded value to the array
+4. Returns the complete array once the iterator is exhausted
+
+## Notes
+
+- The function waits for all values to be yielded before returning
+- Values are collected in the order they are yielded
+- Memory usage grows with the number of values collected
+- For very large iterators, consider processing values as they arrive instead of collecting them all
+
+## Related
+
+- [glob](/api/utils/glob)
+- [Async iterators (MDN)](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of)

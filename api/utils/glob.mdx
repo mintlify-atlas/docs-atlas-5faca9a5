@@ -1,0 +1,112 @@
+---
+title: glob
+description: Find, import, and cast modules by glob pattern
+---
+
+## Function signature
+
+```ts
+export const glob = async <T extends Module>(
+  pattern: string,
+  baseDir?: string,
+): Promise<{ module: T; path: string }[]>
+```
+
+## Description
+
+Finds files matching a glob pattern, imports them as modules, and casts them to the specified type. This function uses Bun's native `Glob` API for efficient file scanning.
+
+## Parameters
+
+<ParamField path="pattern" type="string" required>
+  The glob pattern to match files against. Supports standard glob syntax like `**/*.ts`, `*.js`, etc.
+</ParamField>
+
+<ParamField path="baseDir" type="string">
+  The base directory to search from. Defaults to the current working directory (`process.cwd()`) if not provided
+</ParamField>
+
+## Type parameters
+
+<ParamField path="T" type="extends Module">
+  The expected module type to cast imported modules to. This provides type safety for the returned modules
+</ParamField>
+
+## Returns
+
+<ResponseField name="return" type="Promise<{ module: T; path: string }[]>">
+  A promise that resolves to an array of objects, each containing:
+  - `module`: The imported module, cast to type `T`
+  - `path`: The relative file path where the module was found
+</ResponseField>
+
+## Usage
+
+### Basic example
+
+```ts
+import { glob } from 'mygourd/utils';
+
+// Find and import all TypeScript files in the events directory
+const modules = await glob('events/**/*.ts', import.meta.dir);
+
+for (const { module, path } of modules) {
+  console.log(`Found module at ${path}`);
+  // Use the module...
+}
+```
+
+### With type casting
+
+```ts
+import type { EventModule } from 'mygourd/events';
+import { glob } from 'mygourd/utils';
+
+interface MyModule {
+  handler: () => void;
+  config: Record<string, unknown>;
+}
+
+const modules = await glob<MyModule>('handlers/**/*.ts', './src');
+
+for (const { module, path } of modules) {
+  module.handler(); // Type-safe access to handler
+}
+```
+
+### Multiple patterns with Promise.all
+
+```ts
+import { glob } from 'mygourd/utils';
+
+const patterns = ['events/**/*.ts', 'interactions/**/*.ts'];
+
+const results = await Promise.all(
+  patterns.map((pattern) => glob(pattern, import.meta.dir))
+);
+
+const allModules = results.flat();
+console.log(`Found ${allModules.length} total modules`);
+```
+
+## How it works
+
+1. Creates a new `Glob` instance with the provided pattern
+2. Scans the base directory using `Glob.scan()`
+3. Collects all matching file paths using the `collect` utility
+4. Imports each file using dynamic `import()`
+5. Returns an array pairing each imported module with its path
+
+## Notes
+
+- Requires Bun runtime (uses Bun's native `Glob` API)
+- All paths are resolved to absolute paths before importing
+- The returned paths are relative to the base directory
+- Modules are imported in parallel using `Promise.all` for better performance
+- Type casting is performed but not validated at runtime
+
+## Related
+
+- [globAllRouters](/api/routers/glob-all-routers)
+- [collect](/api/utils/collect)
+- [Bun Glob API](https://bun.sh/docs/api/glob)

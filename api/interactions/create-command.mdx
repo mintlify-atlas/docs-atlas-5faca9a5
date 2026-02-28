@@ -1,0 +1,170 @@
+---
+title: createInteractionRouterCommand
+description: Create a router for a single slash command interaction
+---
+
+The `createInteractionRouterCommand` function creates an interaction router module for a single slash command. This is the most common way to define commands in mygourd.
+
+## Function signature
+
+```typescript
+function createInteractionRouterCommand(
+  command: InteractionDefinition<'commands'>
+): InteractionModule
+```
+
+## Parameters
+
+<ParamField path="command" type="InteractionDefinition<'commands'>" required>
+  An object containing the command definition and handler.
+  
+  ```typescript
+  type InteractionDefinition<'commands'> = {
+    definition: SlashCommandBuilder | SerializableShape;
+    handler: (event: ChatInputCommandInteraction) => unknown;
+  }
+  ```
+  
+  <ul>
+    <li>`definition` - A Discord.js SlashCommandBuilder instance or any object with a `name` property and `toJSON()` method</li>
+    <li>`handler` - An async function that receives a ChatInputCommandInteraction and handles the command execution</li>
+  </ul>
+</ParamField>
+
+## Return value
+
+<ResponseField name="InteractionModule" type="InteractionModule">
+  An interaction module that can be registered with `registerInteractionRouters` or auto-discovered by `globInteractionRouters`.
+</ResponseField>
+
+## Usage
+
+### Basic ping command
+
+```typescript
+import { SlashCommandBuilder } from 'discord.js';
+import { createInteractionRouterCommand } from 'mygourd/interactions';
+
+export const pingCommand = createInteractionRouterCommand({
+  definition: new SlashCommandBuilder()
+    .setName('ping')
+    .setDescription('Pings the bot!'),
+  handler: async (event) => {
+    await event.reply({
+      content: 'pong',
+      flags: 'Ephemeral',
+    });
+  },
+});
+```
+
+### Command with options
+
+```typescript
+import { SlashCommandBuilder } from 'discord.js';
+import { createInteractionRouterCommand } from 'mygourd/interactions';
+
+export const greetCommand = createInteractionRouterCommand({
+  definition: new SlashCommandBuilder()
+    .setName('greet')
+    .setDescription('Greet a user')
+    .addUserOption((option) =>
+      option
+        .setName('user')
+        .setDescription('The user to greet')
+        .setRequired(true)
+    ),
+  handler: async (event) => {
+    const user = event.options.getUser('user', true);
+    await event.reply(`Hello, ${user.toString()}!`);
+  },
+});
+```
+
+### Command with subcommands
+
+```typescript
+import { SlashCommandBuilder } from 'discord.js';
+import { createInteractionRouterCommand } from 'mygourd/interactions';
+
+export const configCommand = createInteractionRouterCommand({
+  definition: new SlashCommandBuilder()
+    .setName('config')
+    .setDescription('Manage bot configuration')
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName('view')
+        .setDescription('View current configuration')
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName('set')
+        .setDescription('Set a configuration value')
+        .addStringOption((option) =>
+          option
+            .setName('key')
+            .setDescription('Configuration key')
+            .setRequired(true)
+        )
+        .addStringOption((option) =>
+          option
+            .setName('value')
+            .setDescription('Configuration value')
+            .setRequired(true)
+        )
+    ),
+  handler: async (event) => {
+    const subcommand = event.options.getSubcommand();
+    
+    if (subcommand === 'view') {
+      // Show configuration
+      await event.reply('Current config: ...');
+    } else if (subcommand === 'set') {
+      const key = event.options.getString('key', true);
+      const value = event.options.getString('value', true);
+      // Update configuration
+      await event.reply(`Set ${key} to ${value}`);
+    }
+  },
+});
+```
+
+## Auto-discovery
+
+When using `globInteractionRouters` or `globAllRouters`, commands created with this function are automatically discovered and registered:
+
+```typescript
+// bot/index.ts
+import { Client } from 'discord.js';
+import { globAllRouters } from 'mygourd/routers';
+
+const client = new Client({ intents: ['Guilds'] });
+
+await globAllRouters(
+  client,
+  ['interactions/**/*.ts'],
+  import.meta.dir
+);
+```
+
+```typescript
+// bot/interactions/commands/ping.ts
+import { SlashCommandBuilder } from 'discord.js';
+import { createInteractionRouterCommand } from 'mygourd/interactions';
+
+export default createInteractionRouterCommand({
+  definition: new SlashCommandBuilder()
+    .setName('ping')
+    .setDescription('Pings the bot!'),
+  handler: async (event) => {
+    await event.reply('pong');
+  },
+});
+```
+
+## Related functions
+
+- [createInteractionRouter](/api/interactions/create-interaction-router) - Create a router with multiple interaction types
+- [createInteractionRouterMenu](/api/interactions/create-menu) - Create a router for context menus
+- [registerInteractionRouters](/api/interactions/register-interaction-routers) - Register routers with Discord
+- [globInteractionRouters](/api/interactions/glob-interaction-routers) - Auto-discover and register routers
