@@ -1,0 +1,117 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "mygourd",
+  "projectDescription": "Type-safe Discord.js utility library with automatic router loading and environment validation",
+  "theme": "palm",
+  "primaryColor": "#5865F2",
+  "lightColor": "#7289DA",
+  "darkColor": "#4752C4",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/event-routers",
+              "concepts/interaction-routers",
+              "concepts/automatic-loading"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/creating-commands",
+              "guides/handling-events",
+              "guides/environment-validation",
+              "guides/command-mentions"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Modules",
+            "pages": [
+              "api/events",
+              "api/interactions",
+              "api/routers",
+              "api/utils"
+            ]
+          },
+          {
+            "group": "Events API",
+            "pages": [
+              "api/events/create-event-router",
+              "api/events/register-event-routers",
+              "api/events/glob-event-routers"
+            ]
+          },
+          {
+            "group": "Interactions API",
+            "pages": [
+              "api/interactions/create-interaction-router",
+              "api/interactions/create-command",
+              "api/interactions/create-menu",
+              "api/interactions/register-interaction-routers",
+              "api/interactions/glob-interaction-routers"
+            ]
+          },
+          {
+            "group": "Routers API",
+            "pages": [
+              "api/routers/glob-all-routers"
+            ]
+          },
+          {
+            "group": "Utils API",
+            "pages": [
+              "api/utils/use-env",
+              "api/utils/login",
+              "api/utils/lazy",
+              "api/utils/glob",
+              "api/utils/collect",
+              "api/utils/entries"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Type-safe event router system for Discord.js",
+    "Automatic module loading via glob patterns",
+    "Slash command and context menu builders",
+    "Environment variable validation with arktype",
+    "Graceful shutdown handling",
+    "Lazy value caching utilities"
+  ],
+  "publicApiSurface": [
+    "createEventRouter",
+    "globEventRouters",
+    "registerEventRouters",
+    "createInteractionRouter",
+    "createInteractionRouterCommand",
+    "createInteractionRouterMenu",
+    "globInteractionRouters",
+    "registerInteractionRouters",
+    "globAllRouters",
+    "useEnv",
+    "login",
+    "lazy",
+    "glob",
+    "collect",
+    "entries"
+  ]
+}
