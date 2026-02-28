@@ -39,6 +39,10 @@ The module exports the following types:
 - `EventModule` - A branded event module with type safety
 - `EventModuleShape` - Partial mapping of Discord.js client events to handlers
 
+## Utilities
+
+- `isEventModule(v: unknown): v is EventModule` - Type guard to check if a value is a valid event module. Used internally by the glob functions for validation.
+
 ## How it works
 
 Event modules are created using `createEventRouter` and are branded with a unique symbol for runtime validation. The module supports all Discord.js `ClientEvents` and provides automatic type inference for event handlers.

@@ -54,6 +54,10 @@ The module exports the following types:
 - `InteractionShapeMapper` - Maps interaction types to builder types
 - `SerializableShape` - Interface for serializable command definitions
 
+## Utilities
+
+- `isInteractionModule(v: unknown): v is InteractionModule` - Type guard to check if a value is a valid interaction module. Used internally by the glob functions for validation.
+
 ## How it works
 
 Interaction modules support two types of interactions:
